@@ -156,8 +156,10 @@ friendly message in `src/lib/constants.ts`.
 
 ## Security rules (non-negotiable)
 
-1. **RLS on every table.** A new table gets RLS and its policies in the
-   same migration.
+1. **RLS on every table.** Enable RLS in the same migration that
+   creates the table. (With RLS on and no policies, nobody can read or
+   write the table, which is safe.) Add its policies in the same or the
+   next migration, before any app code uses the table.
 2. **Status columns are never written directly.** Every status change
    goes through a function above. Never add an UPDATE grant or policy
    that lets users change `status`, `user_id`, `report_type`,
