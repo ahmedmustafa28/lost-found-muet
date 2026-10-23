@@ -953,7 +953,8 @@ lost-found-muet/
 │   ├── lib/
 │   │   ├── supabase/
 │   │   │   ├── client.ts      # browser client
-│   │   │   └── server.ts      # server client
+│   │   │   ├── server.ts      # server client
+│   │   │   └── proxy.ts       # updateSession() helper used by src/proxy.ts
 │   │   ├── validation/        # Zod schemas
 │   │   ├── constants.ts       # categories, statuses, limits, error messages
 │   │   └── utils/
