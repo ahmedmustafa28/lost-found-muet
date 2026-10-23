@@ -53,6 +53,10 @@ Version notes:
 - Never use `@supabase/auth-helpers-nextjs` (deprecated).
 - Do not copy code from old tutorials. Check the official docs for the
   installed version.
+- Docs matching the installed Next.js version are in
+  `node_modules/next/dist/docs/`. Read them before using Next.js APIs.
+- `cacheComponents` is off on purpose. Don't turn it on or add
+  `'use cache'` without asking.
 
 ## Commands
 
