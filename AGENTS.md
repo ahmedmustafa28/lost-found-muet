@@ -134,6 +134,9 @@ Text limits (Zod and database must match):
 | `item_reports.event_date` | not after today, not more than 365 days ago (`Asia/Karachi`) |
 | Images | JPEG, PNG, WebP; max 5 MB |
 
+Zod schemas must `.trim()` strings before checking length, because the
+database checks trimmed length.
+
 Define these values once in `src/lib/constants.ts` and import them.
 Never hard-code them in components.
 

@@ -529,6 +529,10 @@ General rules:
 - User-owned rows reference `auth.users(id) on delete cascade`, so
   deleting an account deletes that person's data. Reviewer and admin
   references use `on delete set null`.
+- Every foreign key column has an index that starts with it, so deletes
+  and cascades don't scan the referencing table. The one exception is
+  `item_reports.location_key`: locations are retired with `is_active`,
+  never deleted.
 - Every table has RLS enabled in the same migration that creates it.
 
 ### 9.1 `profiles`
@@ -637,7 +641,8 @@ Indexes and constraints:
   one open claim per user per report.
 - Unique `(item_id) where status = 'approved'`: at most one approved
   claim per report.
-- `(item_id, status)` and `(claimant_id, created_at desc)`.
+- `(item_id, status)`, `(claimant_id, created_at desc)`, and
+  `(reviewed_by)`.
 
 Access:
 
@@ -663,6 +668,9 @@ Access:
   `details` only) and can read the ones they filed.
 - Unique `(item_id, reporter_id) where status in ('open', 'reviewing')`:
   one open flag per user per listing.
+- Indexes `(item_id)`, `(reporter_id)`, and `(reviewed_by)` for the
+  foreign keys. The partial unique index above can't serve `item_id`
+  lookups.
 - Only admins change the status, through `admin_review_flag()`.
 
 ### 9.7 `admins`
@@ -691,6 +699,7 @@ Access:
 
 - Admins can read it. Only admin functions insert into it. Nobody
   updates or deletes it.
+- Index `(admin_id)` for the foreign key.
 
 ### 9.9 `messages` (P1 only)
 
@@ -791,8 +800,9 @@ Nobody deletes rows through the API.
 - Store every schema change as a migration file in
   `supabase/migrations/`, created with `supabase migration new <name>`.
 - Suggested first migrations:
-  1. `core_tables` — tables, constraints, indexes.
-  2. `rls_policies` — RLS and column grants.
+  1. `core_tables` — tables, constraints, indexes; RLS enabled with no
+     policies.
+  2. `rls_policies` — policies and column grants.
   3. `functions` — helper, claim, report, and admin functions; triggers.
   4. `storage` — the `item-images` bucket and its policies.
 - `supabase/seed.sql` holds placeholder locations and fictional
