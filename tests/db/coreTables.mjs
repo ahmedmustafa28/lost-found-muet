@@ -28,11 +28,13 @@ const item = (cols) => {
   return `insert into public.item_reports (${keys.join(", ")}) values (${keys.map((k) => base[k]).join(", ")})`;
 };
 
+// Profiles are created by the handle_new_user trigger, so these update them.
 console.log("\nprofiles");
-await expectError("full_name 1 char", `insert into public.profiles values ('${U1}', 'A')`, "profiles_full_name_length");
-await expectError("full_name whitespace only", `insert into public.profiles values ('${U1}', '     ')`, "profiles_full_name_length");
-await expectError("full_name 81 chars", `insert into public.profiles values ('${U1}', '${L(81)}')`, "profiles_full_name_length");
-await expectOk("full_name 80 chars", `insert into public.profiles values ('${U1}', '${L(80)}')`);
+const setName = (name) => `update public.profiles set full_name = '${name}' where id = '${U1}'`;
+await expectError("full_name 1 char", setName("A"), "profiles_full_name_length");
+await expectError("full_name whitespace only", setName("     "), "profiles_full_name_length");
+await expectError("full_name 81 chars", setName(L(81)), "profiles_full_name_length");
+await expectOk("full_name 80 chars", setName(L(80)));
 await expectError("profile for unknown user", `insert into public.profiles values (gen_random_uuid(), 'Ali')`, "profiles_id_fkey");
 
 console.log("\nitem_reports");
@@ -44,7 +46,8 @@ await expectError("title 81 chars", item({ title: `'${L(81)}'` }), "item_reports
 await expectError("description 9 chars", item({ description: `'${L(9)}'` }), "item_reports_description_length");
 await expectError("description 1001 chars", item({ description: `'${L(1001)}'` }), "item_reports_description_length");
 await expectError("location_detail 121 chars", item({ location_detail: `'${L(121)}'` }), "item_reports_location_detail_length");
-await expectError("unknown location_key", item({ location_key: "'mars'" }), "item_reports_location_key_fkey");
+// validate_item_report rejects it before the foreign key is checked.
+await expectError("unknown location_key", item({ location_key: "'mars'" }), "INVALID_INPUT");
 await expectError("event_date missing", item({ event_date: "null" }), "event_date");
 await expectError("owner not an auth user", item({ user_id: "gen_random_uuid()" }), "item_reports_user_id_fkey");
 await expectOk("valid report (empty location_detail, title 80, description 1000)",
@@ -54,8 +57,8 @@ await db.exec(`set request.jwt.claim.sub = '${U2}'`);
 await expectOk("user_id defaults to auth.uid()", item({ id: `'${ITEM2}'`, user_id: undefined, report_type: "'lost'" }));
 await expectValue("  -> user_id", `select user_id from public.item_reports where id = '${ITEM2}'`, U2);
 await db.exec(`reset request.jwt.claim.sub`);
-await expectOk("future event_date still accepted (trigger comes later)",
-  item({ id: "gen_random_uuid()", event_date: "current_date + 30" }));
+await expectError("future event_date (validate_item_report trigger)",
+  item({ id: "gen_random_uuid()", event_date: "current_date + 30" }), "INVALID_INPUT");
 
 console.log("\nitem_private_details");
 await expectError("details empty", `insert into public.item_private_details (item_id, details) values ('${ITEM}', '')`, "item_private_details_details_length");
@@ -114,7 +117,7 @@ await expectOk("delete report", `delete from public.item_reports where id = '${I
 await expectValue("  -> private details cascaded", `select count(*) from public.item_private_details`, 0);
 await expectValue("  -> claims cascaded", `select count(*) from public.claims`, 0);
 await expectOk("delete owner account", `delete from auth.users where id = '${U1}'`);
-await expectValue("  -> profile cascaded", `select count(*) from public.profiles`, 0);
+await expectValue("  -> profile cascaded", `select count(*) from public.profiles where id = '${U1}'`, 0);
 await expectValue("  -> remaining reports cascaded", `select count(*) from public.item_reports`, 0);
 
 console.log("\nRLS");

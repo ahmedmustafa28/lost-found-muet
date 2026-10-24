@@ -26,10 +26,10 @@ const RLS = "row-level security";
 const desc = "'Placeholder description.'";
 const msg = "'Placeholder claim message.'";
 await db.exec(`
-  insert into auth.users (id) values ('${OWNER}'), ('${OTHER}'), ('${CLAIMANT}'), ('${ADMIN}');
-  insert into public.profiles (id, full_name) values
-    ('${OWNER}', 'Owner Person'), ('${OTHER}', 'Other Person'),
-    ('${CLAIMANT}', 'Claimant Person'), ('${ADMIN}', 'Admin Person');
+  -- The handle_new_user trigger creates each profile from full_name.
+  insert into auth.users (id, raw_user_meta_data) values
+    ('${OWNER}', '{"full_name": "Owner Person"}'), ('${OTHER}', '{"full_name": "Other Person"}'),
+    ('${CLAIMANT}', '{"full_name": "Claimant Person"}'), ('${ADMIN}', '{"full_name": "Admin Person"}');
   insert into public.admins (user_id) values ('${ADMIN}');
   insert into public.campus_locations (key, label, is_active) values
     ('library', 'Library (placeholder)', true), ('old_gate', 'Old gate (placeholder)', false);

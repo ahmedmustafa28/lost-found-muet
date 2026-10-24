@@ -131,7 +131,12 @@ export const TEXT_LIMITS = {
   claimMessage: { min: 10, max: 1000 }, // claims.message
   handoverNote: { min: 5, max: 500 }, // claims.handover_note
   abuseDetails: { min: 0, max: 1000 }, // abuse_reports.details
+  adminReason: { min: 1, max: 500 }, // p_reason in admin functions; admin_audit_log.reason
 } as const;
+
+// Given by the handle_new_user trigger when sign-up has no valid name (for
+// example, users added in the Supabase dashboard). Must match the migration.
+export const DEFAULT_FULL_NAME = "MUET user";
 
 // "Today" and date checks use Pakistan time, whatever the server's zone.
 export const APP_TIME_ZONE = "Asia/Karachi";
@@ -179,7 +184,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   DUPLICATE_CLAIM: "You already have an open claim on this report.",
   ALREADY_APPROVED: "Another claim on this report has already been approved.",
   INVALID_STATUS: "This action isn't possible right now. Refresh the page and try again.",
-  INVALID_INPUT: "Some details are missing or too long. Check the form and try again.",
+  INVALID_INPUT: "Some details are missing or not valid. Check the form and try again.",
 };
 
 // Shown for any error without a known code, so raw database errors never
