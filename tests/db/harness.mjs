@@ -58,6 +58,36 @@ export async function setup() {
     grant execute on function auth.uid() to anon, authenticated;
     alter default privileges in schema public grant all on tables to anon, authenticated;
     alter default privileges in schema public grant all on functions to anon, authenticated;
+
+    -- Supabase's storage schema, cut down to what the policies use. As in
+    -- Supabase, RLS is on and both API roles have full table grants, so the
+    -- policies alone decide access. File size and type limits are enforced
+    -- by the Storage service, not here.
+    create schema storage;
+    create table storage.buckets (
+      id text primary key,
+      name text not null,
+      public boolean default false,
+      file_size_limit bigint,
+      allowed_mime_types text[]
+    );
+    create table storage.objects (
+      id uuid primary key default gen_random_uuid(),
+      bucket_id text references storage.buckets (id),
+      name text not null,
+      owner_id text default auth.uid()::text,
+      unique (bucket_id, name)
+    );
+    create function storage.foldername(name text) returns text[] language plpgsql as $$
+    declare _parts text[];
+    begin
+      select string_to_array(name, '/') into _parts;
+      return _parts[1:array_length(_parts, 1) - 1];
+    end $$;
+    alter table storage.buckets enable row level security;
+    alter table storage.objects enable row level security;
+    grant usage on schema storage to anon, authenticated;
+    grant all on storage.buckets, storage.objects to anon, authenticated;
   `);
 
   console.log("\nApply migrations");

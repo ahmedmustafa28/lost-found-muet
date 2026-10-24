@@ -256,9 +256,14 @@ Use one repository and one web application.
 - [ ] Proper pagination and full-text search.
 - [ ] Automatically close reports after a set time (for example 60
       days), with a reminder before closing.
-- [ ] Remove orphaned images from storage.
+- [ ] Remove a deleted user's image folder from storage (11.3).
+- [ ] Remove uploads that were never attached to a report, after a
+      set time.
+- [ ] A limit on how many images one user can upload.
 - [ ] Owner can reopen a closed report.
 - [ ] Flagging of claims, not only listings.
+- [ ] Save a snapshot of the report's content and image when a flag is
+      filed, so admins review what was actually flagged (11.1).
 - [ ] A limit on how many pending claims one user can have (anti-spam).
 - [ ] Stop exposing other people's user IDs: the reporter's `user_id`
       (and its folder in `image_path`), `claims.claimant_id`, and
@@ -601,7 +606,7 @@ General rules:
 | `location_key` | `text not null` | References `campus_locations(key)` |
 | `location_detail` | `text null` | Up to 120 characters |
 | `event_date` | `date not null` | Checked by trigger: not in the future, not older than 365 days (Pakistan time) |
-| `image_path` | `text null` | Storage path, must start with the owner's user ID folder |
+| `image_path` | `text null` | Storage path in `item-images`: `<owner user_id>/<uuid>.<jpg\|png\|webp>` (checked by `validate_item_report`) |
 | `status` | `text not null default 'active'` | `active`, `resolved`, `closed`, `hidden` |
 | `resolved_at` | `timestamptz null` | Set by `resolve_report()` |
 | `created_at` | `timestamptz not null default now()` | |
@@ -613,6 +618,8 @@ Indexes:
 - `(status, category)`
 - `(status, location_key)`
 - `(user_id, created_at desc)`
+- `(image_path) where image_path is not null`: the storage policies
+  find an image's report by its path.
 
 Column grants for the `authenticated` role:
 
@@ -863,8 +870,10 @@ Writing:
 | `abuse_reports` | Insert own, only on reports they can see | Status through `admin_review_flag()` |
 | `admin_audit_log` | Nothing | Written by admin functions only |
 | `admins`, `campus_locations` | Nothing | SQL editor or dashboard |
+| Storage (`item-images`) | See 11.1: upload to own folder; read images of reports they can see, and own files; delete own files no report points to | Read images of all reports; no delete |
 
-Nobody deletes rows through the API.
+Nobody deletes rows from these tables through the API. The only
+deletes are of image files in Storage (11.1).
 
 Grants: Supabase gives `anon` and `authenticated` full access on new
 tables, and policies only filter rows within that access. So every
@@ -983,20 +992,60 @@ A publishable key is safe in the browser only because RLS is correct.
 ### 11.1 Images
 
 - Bucket: `item-images`, **private**.
-- Object path: `<user_id>/<random-uuid>.<ext>`. Never use the uploaded
-  file name.
+- Object path: `<user_id>/<random-uuid>.<ext>`, with `<ext>` one of
+  `jpg`, `png`, `webp` (lowercase, no subfolders). Never use the
+  uploaded file name.
 - Allowed types: JPEG, PNG, WebP. Maximum size: 5 MB. Set these limits
-  on the bucket as well as in the app.
+  on the bucket as well as in the app. The Storage service enforces
+  them using the content type the browser declares; it does not inspect
+  the file itself.
+- **Re-encode every image in the browser before upload** (for example,
+  draw it on a canvas and export it as JPEG or WebP). Phone photos often
+  carry GPS location and other EXIF data, and Storage serves files
+  exactly as uploaded. Re-encoding removes that data and shrinks the
+  file. Never upload the original file.
 - Upload from the browser straight to Storage (Next.js Server Actions
   have a small default request size limit). Then send the resulting
   path to the Server Action that saves the report.
-- Storage policies:
-  - Insert: only into your own `<user_id>/` folder.
-  - Read: only if the image belongs to a report you can see (active, or
-    your own, or one you have a claim on, or you are an admin).
-  - Delete: only in your own folder.
-- Show images with short-lived signed URLs created on the server.
-- Consider resizing large images in the browser before upload.
+- Storage policies (on `storage.objects`, for `item-images` only):
+  - Insert (signed-in users): only into your own `<user_id>/` folder,
+    and only with the exact path format above, the same format
+    `validate_item_report` accepts for `image_path`. Not to a path a
+    report already points to (a report can name a file that doesn't
+    exist yet, and uploading it would add an image to that report).
+  - Read (visitors and signed-in users): only if a report you can see
+    has that `image_path`. The check runs under the `item_reports` read
+    rules, so it follows them exactly (9.12).
+  - Read (signed-in users): anything in your own folder, including
+    images not yet attached to a report. This is for previews, and
+    because Storage's remove needs read access as well as delete.
+  - Delete (signed-in users): only in your own folder, and only files
+    that no report points to. Admins remove an image from view by
+    hiding the report.
+  - No update policy: files can't be overwritten or moved. Upload with
+    `upsert: false` (the default).
+  - Together these lock an attached image once its report is resolved,
+    closed, or hidden: only `active` reports can change `image_path`,
+    so the image can't be removed, or deleted and uploaded again under
+    the same name.
+  - While a report is `active`, its owner can change its content,
+    including the image, even if it has been flagged. So a flagged
+    image can be changed or removed before an admin reviews it, just
+    like the title and description. This is accepted for the MVP:
+    locking edits while a flag is open would let anyone freeze a report
+    by flagging it. See the P1 list for flag snapshots.
+- To change or remove a report's image, the app works in this order:
+  1. To change it: upload the new file first.
+  2. Update the report's `image_path` (to the new file's path, or to
+     `null` to remove the image).
+  3. Then delete the old file. Deleting it first fails while the report
+     still points to it.
+
+  Storage's remove does not report an error when a policy blocks it; it
+  just removes nothing. Check the list of removed files it returns.
+- Show images with short-lived signed URLs created on the server. A
+  signed URL works for anyone who has it until it expires, so keep
+  expiry times short.
 
 ### 11.2 Sensitive items
 
@@ -1020,6 +1069,14 @@ For ID cards, bank cards, documents, wallets, and phones:
   - Decide how long resolved and closed reports are kept.
   - Set up a way to handle flags and urgent privacy issues.
   - Get permission before using official university marks.
+- Images need an admin for some deletions (MVP):
+  - Deleting an account deletes its reports, but the files in its
+    `<user_id>/` folder stay in storage. Nobody can read them through
+    the app any more, but they are still stored.
+  - Owners can't delete or remove images on resolved, closed, or hidden
+    reports (11.1).
+  - For now, an admin handles deletion requests by hand in the Supabase
+    dashboard. See the P1 list for automatic clean-up.
 
 ---
 
@@ -1344,7 +1401,9 @@ Run each as **visitor**, **report owner**, **other user**, and
 - Non-admins cannot call admin functions or read `admins` or the audit
   log.
 - Storage: users cannot upload outside their folder or read images of
-  reports they cannot see.
+  reports they cannot see. Nobody can delete or upload a file that a
+  report points to, so images are locked once a report is resolved,
+  closed, or hidden.
 
 ### 16.3 End-to-end tests (Playwright)
 
