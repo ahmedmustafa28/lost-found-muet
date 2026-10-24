@@ -198,7 +198,10 @@ friendly message in `src/lib/constants.ts`.
    constraints in the database, with the same limits.
 10. **Images:** private bucket `item-images`, path
     `<user_id>/<uuid>.<ext>`, generated file names only, shown through
-    short-lived signed URLs created on the server.
+    short-lived signed URLs created on the server. The browser must
+    re-encode every image before upload (for example through a canvas).
+    This shrinks it and removes EXIF data, including GPS location; Storage
+    serves files exactly as uploaded.
 11. **Never read, print, or commit `.env.local`.** If you need a value,
     ask the human.
 
