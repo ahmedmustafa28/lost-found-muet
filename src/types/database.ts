@@ -313,7 +313,38 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      admin_hide_report: {
+        Args: { p_item_id: string; p_reason: string }
+        Returns: undefined
+      }
+      admin_restore_report: {
+        Args: { p_item_id: string; p_reason: string }
+        Returns: undefined
+      }
+      admin_review_flag: {
+        Args: { p_flag_id: string; p_reason: string; p_status: string }
+        Returns: undefined
+      }
+      approve_claim: {
+        Args: { p_claim_id: string; p_handover_note: string }
+        Returns: undefined
+      }
+      cancel_claim: { Args: { p_claim_id: string }; Returns: undefined }
+      close_report: { Args: { p_item_id: string }; Returns: undefined }
+      get_claim_contact: {
+        Args: { p_claim_id: string }
+        Returns: {
+          email: string
+          full_name: string
+        }[]
+      }
+      is_admin: { Args: never; Returns: boolean }
+      reject_claim: { Args: { p_claim_id: string }; Returns: undefined }
+      resolve_report: { Args: { p_item_id: string }; Returns: undefined }
+      submit_claim: {
+        Args: { p_item_id: string; p_message: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
