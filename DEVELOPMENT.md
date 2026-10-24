@@ -116,6 +116,7 @@ affects (especially permissions), and update this table when you do.
 | D-10 | Locations come from the `campus_locations` table plus an optional free-text detail. Categories are a fixed list enforced by a database check. |
 | D-11 | The app uses only the Supabase URL and the publishable key. No secret / service-role key in the MVP. |
 | D-12 | Times are stored as `timestamptz` (UTC) and shown in Pakistan time (`Asia/Karachi`). "Today" checks use `Asia/Karachi`. |
+| D-13 | Anonymous sign-ins stay off. Policies treat every signed-in user as a real, verified account. |
 
 ### 2.1 Open decisions (settle before Milestone 2)
 
@@ -259,6 +260,9 @@ Use one repository and one web application.
 - [ ] Owner can reopen a closed report.
 - [ ] Flagging of claims, not only listings.
 - [ ] A limit on how many pending claims one user can have (anti-spam).
+- [ ] Stop exposing other people's user IDs: the reporter's `user_id`
+      (and its folder in `image_path`), `claims.claimant_id`, and
+      `reviewed_by` on claims and flags (see 9.12).
 - [ ] Basic statistics.
 
 ### P2 — Future ideas
@@ -515,6 +519,14 @@ Owners can edit content only while the report is `active`.
 | `pending`, `approved` | `cancelled` | Claimant | — | `cancel_claim()` |
 | `pending`, `approved` | `closed` | System | Report resolved (pending only), closed, or hidden | Inside the report functions |
 
+A claimant can see the report only while it is `active` or while their
+claim is `pending` or `approved` (and never once it is `hidden`). After
+a claim is rejected, cancelled, or closed on a report that is no longer
+active, the claimant still sees their claim but not the report. The
+claim page must handle this: show the claim and its status with a
+"This report is no longer available" message instead of the report
+details.
+
 ---
 
 ## 9. Database Design
@@ -613,8 +625,9 @@ and `\` in user input escaped. Full-text search is P1.
 | `created_at` | `timestamptz not null default now()` | |
 | `updated_at` | `timestamptz not null default now()` | |
 
-- Readable, insertable, and updatable only by the owner of the linked
-  report. Admins can read.
+- Readable only by the owner of the linked report and admins.
+- Insertable and updatable only by the owner, and only while the report
+  is `active` (the same rule as report content, section 8.6).
 - This is a separate table because RLS works on rows. If this text were
   a column in `item_reports`, anyone who can read the report could read
   it.
@@ -726,13 +739,14 @@ All functions that check permissions or change status:
 - Check `auth.uid()` themselves. They must not trust any user ID passed
   in.
 - Revoke `execute` from `public` and `anon`; grant it to
-  `authenticated` (except `is_admin()`, which policies use).
+  `authenticated`. This includes `is_admin()`: no visitor policy calls
+  it.
 - Raise errors with the codes below so the UI can show friendly
   messages.
 
 | Function | Who can call | What it does |
 |----------|--------------|--------------|
-| `is_admin()` returns `boolean` | Used inside policies and functions | True if `auth.uid()` is in `admins` |
+| `is_admin()` returns `boolean` | Signed-in user; used inside policies and functions, and by the UI for display checks | True if `auth.uid()` is in `admins` |
 | `submit_claim(p_item_id uuid, p_message text)` returns `uuid` | Signed-in user | Creates a `pending` claim. Sets `claim_type` from the report type. Checks report is active, caller is not the owner, no open claim from the caller. |
 | `approve_claim(p_claim_id uuid, p_handover_note text)` | Report owner, admin | `pending` → `approved`. Checks report is active and no other approved claim. Saves the handover note, reviewer, and time. |
 | `reject_claim(p_claim_id uuid)` | Report owner, admin | `pending` or `approved` → `rejected`, while the report is active. |
@@ -743,6 +757,18 @@ All functions that check permissions or change status:
 | `admin_hide_report(p_item_id uuid, p_reason text)` | Admin | Any status except `hidden` → `hidden`, closes pending and approved claims, writes audit log. |
 | `admin_restore_report(p_item_id uuid, p_reason text)` | Admin | `hidden` → `active`, writes audit log. |
 | `admin_review_flag(p_flag_id uuid, p_status text, p_reason text)` | Admin | Sets an abuse report to `reviewing`, `actioned`, or `dismissed`, writes audit log. |
+
+Policy helpers, in the `private` schema (not exposed by the API). Same
+rules as above, but only `authenticated` has `usage` on the schema and
+`execute` on them. They are security definer so the `item_reports` and
+`claims` policies can look at each other's table without calling each
+other's policies in a loop. Each answers a question about the caller
+only.
+
+| Function | Used by | What it does |
+|----------|---------|--------------|
+| `private.is_report_owner(p_item_id uuid)` returns `boolean` | `item_private_details` and `claims` policies | True if the caller owns the report |
+| `private.has_claim_on_report(p_item_id uuid)` returns `boolean` | `item_reports` policy | True if the caller has a `pending` or `approved` claim on the report |
 
 Error codes:
 
@@ -764,7 +790,7 @@ Error codes:
 |---------|-------|---------|
 | `handle_new_user` | `auth.users` (after insert) | Create the `profiles` row from sign-up metadata |
 | `set_updated_at` | All tables with `updated_at` | Keep `updated_at` correct |
-| `validate_item_report` | `item_reports` (before insert/update) | Check `event_date` against today in `Asia/Karachi`; check `image_path` starts with the owner's folder |
+| `validate_item_report` | `item_reports` (before insert/update) | Check `event_date` against today in `Asia/Karachi`; check `image_path` starts with the owner's folder; reject an inactive `location_key` on insert, and on update only when `location_key` changes (so old reports can keep a retired location) |
 
 ### 9.12 Row Level Security summary
 
@@ -774,7 +800,7 @@ Reading (`SELECT`):
 |-------|---------|----------------|-------|
 | `profiles` | — | Own row | All |
 | `campus_locations` | Active rows | Active rows | All |
-| `item_reports` | `active` only | `active`, plus own (any status), plus reports they have a claim on | All |
+| `item_reports` | `active` only | `active`, plus own (any status), plus reports they have a `pending` or `approved` claim on (except `hidden`) | All |
 | `item_private_details` | — | Own reports only | All |
 | `claims` | — | Claims they made, and claims on their reports | All |
 | `abuse_reports` | — | Ones they filed | All |
@@ -787,13 +813,37 @@ Writing:
 |-------|----------------|-------|
 | `profiles` | Update own `full_name` | SQL editor |
 | `item_reports` | Insert own (status is always `active`); update content columns of own `active` reports | Status through functions |
-| `item_private_details` | Insert and update for own reports | — |
+| `item_private_details` | Insert and update for own `active` reports | — |
 | `claims` | Nothing directly; functions only | Functions only |
-| `abuse_reports` | Insert own | Status through `admin_review_flag()` |
+| `abuse_reports` | Insert own, only on reports they can see | Status through `admin_review_flag()` |
 | `admin_audit_log` | Nothing | Written by admin functions only |
 | `admins`, `campus_locations` | Nothing | SQL editor or dashboard |
 
 Nobody deletes rows through the API.
+
+Grants: Supabase gives `anon` and `authenticated` full access on new
+tables, and policies only filter rows within that access. So every
+table starts with all of it revoked, and only these are granted back:
+
+- `SELECT` where this section allows reading (`anon`: `campus_locations`
+  and `item_reports` only; nothing on `admins` for anyone).
+- The column grants in 9.3 (`item_reports`) and 9.6 (`abuse_reports`),
+  `UPDATE (full_name)` on `profiles`, and `INSERT (item_id, details)` /
+  `UPDATE (details)` on `item_private_details`.
+- No `DELETE` on any table.
+
+Known limitation (MVP): some rows show other people's user IDs.
+
+- `item_reports.user_id`, to anyone who can read the report. Its
+  `image_path` contains it too.
+- `claims.claimant_id`, to the report owner.
+- `claims.reviewed_by`, to the claimant and the report owner.
+- `abuse_reports.reviewed_by` (the reviewing admin), to the user who
+  filed the flag.
+
+Names and emails stay private, because `profiles` is own-row only and
+contact details come only from `get_claim_contact()`. But someone could
+tell that two rows came from the same account. See the P1 list.
 
 ### 9.13 Database migrations
 

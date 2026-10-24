@@ -1,14 +1,9 @@
-// Applies every migration in supabase/migrations to PGlite (Postgres in WASM)
-// with a tiny stand-in for Supabase's auth schema, then checks constraints,
-// indexes, foreign-key delete rules and RLS. Docker isn't needed, so this runs
-// where `supabase db reset` can't. Usage: npm run test:db
-import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { PGlite } from "@electric-sql/pglite";
+// Checks the core_tables migration: constraints, indexes, foreign-key delete
+// rules, and that RLS is on for every table. Policies and grants are checked
+// in rlsPolicies.mjs. Usage: npm run test:db
+import { setup } from "./harness.mjs";
 
-const migrationsDir = fileURLToPath(new URL("../../supabase/migrations/", import.meta.url));
-const db = new PGlite();
+const { db, check, expectOk, expectError, expectValue, finish } = await setup();
 
 const U1 = "00000000-0000-0000-0000-000000000001"; // report owner
 const U2 = "00000000-0000-0000-0000-000000000002"; // claimant / flagger
@@ -18,49 +13,6 @@ const ITEM = "10000000-0000-0000-0000-000000000001";
 const ITEM2 = "10000000-0000-0000-0000-000000000002";
 const C1 = "20000000-0000-0000-0000-000000000001";
 const C2 = "20000000-0000-0000-0000-000000000002";
-
-let pass = 0, fail = 0;
-const ok = (name) => { pass++; console.log(`  PASS  ${name}`); };
-const bad = (name, why) => { fail++; console.log(`  FAIL  ${name}\n        ${why}`); };
-
-async function expectOk(name, sql) {
-  try { await db.exec(sql); ok(name); } catch (e) { bad(name, `unexpected error: ${e.message}`); }
-}
-async function expectError(name, sql, needle) {
-  try { await db.exec(sql); bad(name, `expected error containing "${needle}", but it succeeded`); }
-  catch (e) { check(`${name}  [${needle}]`, e.message.includes(needle), `wrong error: ${e.message}`); }
-}
-async function expectValue(name, sql, expected) {
-  const { rows } = await db.query(sql);
-  const got = rows.length ? Object.values(rows[0])[0] : undefined;
-  check(`${name} = ${expected}`, String(got) === String(expected), `expected ${expected}, got ${got}`);
-}
-function check(name, passed, why) {
-  if (passed) ok(name);
-  else bad(name, why);
-}
-
-const ver = await db.query("select version()");
-console.log(ver.rows[0].version.split(",")[0]);
-
-// --- Stand-in for Supabase: auth.users, auth.uid(), and its default grants.
-await db.exec(`
-  create schema auth;
-  create table auth.users (id uuid primary key);
-  create function auth.uid() returns uuid language sql stable
-    as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-  create role anon nologin;
-  create role authenticated nologin;
-  grant usage on schema public, auth to anon, authenticated;
-  grant execute on function auth.uid() to anon, authenticated;
-  alter default privileges in schema public grant all on tables to anon, authenticated;
-`);
-
-console.log("\nApply migrations");
-// Filenames start with a timestamp, so sorting gives the order Supabase uses.
-for (const file of readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort()) {
-  await expectOk(file, readFileSync(join(migrationsDir, file), "utf8"));
-}
 
 await db.exec(`
   insert into auth.users (id) values ('${U1}'), ('${U2}'), ('${U3}'), ('${U4}');
@@ -168,19 +120,6 @@ await expectValue("  -> remaining reports cascaded", `select count(*) from publi
 console.log("\nRLS");
 await expectValue("tables in public", `select count(*) from pg_tables where schemaname = 'public'`, 8);
 await expectValue("tables with RLS enabled", `select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity`, 8);
-await expectValue("policies", `select count(*) from pg_policies where schemaname = 'public'`, 0);
-await db.exec(`insert into auth.users (id) values ('${U1}'); insert into public.campus_locations (key, label) values ('gate', 'Gate (placeholder)') on conflict do nothing;`);
-await db.exec(item({ id: `'${ITEM}'` }));
-for (const role of ["anon", "authenticated"]) {
-  await db.exec(`set role ${role}; set request.jwt.claim.sub = '${role === "authenticated" ? U1 : ""}'`);
-  for (const t of ["item_reports", "campus_locations", "admins"]) {
-    await expectValue(`${role} sees rows in ${t}`, `select count(*) from public.${t}`, 0);
-  }
-  await expectError(`${role} insert into item_reports`, item({ id: "gen_random_uuid()" }), "row-level security");
-  await expectError(`${role} insert into admins`, `insert into public.admins (user_id) values ('${U1}')`, "row-level security");
-  await expectValue(`${role} update item_reports (rows changed)`, `with u as (update public.item_reports set status = 'hidden' returning 1) select count(*) from u`, 0);
-  await db.exec(`reset role; reset request.jwt.claim.sub`);
-}
 
 console.log("\nIndexes");
 const expectedIndexes = [
@@ -211,7 +150,6 @@ const gaps = unindexed.map((r) => `${r.tbl}.${r.col}`);
 check("every foreign key indexed except item_reports.location_key",
   gaps.length === 1 && gaps[0] === "item_reports.location_key", `unindexed: ${gaps.join(", ") || "none"}`);
 
-console.log(`\n${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+finish();
 
 function gen() { return "30000000-0000-0000-0000-000000000009"; }

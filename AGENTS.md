@@ -213,6 +213,13 @@ friendly message in `src/lib/constants.ts`.
   rows.
 - Never disable RLS or add `using (true)` / `with check (true)` write
   policies to make something work.
+- Every new table: enable RLS and revoke all from anon and authenticated
+  in the same migration, then grant back only what is needed. Supabase
+  grants full access on new tables by default, and policies don't
+  remove it.
+- Security-definer helpers used only inside policies go in the private
+  schema. Functions the app calls with rpc go in public and must check
+  permissions themselves.
 - Store times as `timestamptz` (UTC). Display and compare dates in
   `Asia/Karachi`.
 - Seed data must be fictional.
