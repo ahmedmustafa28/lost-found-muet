@@ -131,11 +131,13 @@ Text limits (Zod and database must match):
 | `claims.message` | 10–1000 |
 | `claims.handover_note` | 5–500 |
 | `abuse_reports.details` | 0–1000 |
+| `p_reason` in admin functions (`admin_audit_log.reason`) | 1–500 |
 | `item_reports.event_date` | not after today, not more than 365 days ago (`Asia/Karachi`) |
 | Images | JPEG, PNG, WebP; max 5 MB |
 
 Zod schemas must `.trim()` strings before checking length, because the
-database checks trimmed length.
+database checks trimmed length. In SQL, trim with `private.trim_text()`
+(it trims the same characters as JavaScript), never `btrim()`.
 
 Define these values once in `src/lib/constants.ts` and import them.
 Never hard-code them in components.

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:db": "node tests/db/coreTables.mjs && node tests/db/rlsPolicies.mjs"
+    "test:db": "node tests/db/coreTables.mjs && node tests/db/rlsPolicies.mjs && node tests/db/functionsAndTriggers.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

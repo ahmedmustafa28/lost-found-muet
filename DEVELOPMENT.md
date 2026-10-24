@@ -487,8 +487,13 @@ constraint) and an update to the constants file.
 |------|----|-----|----------|
 | `active` | `resolved` | Report owner, admin | `resolve_report()` |
 | `active` | `closed` | Report owner, admin | `close_report()` |
-| `active`, `resolved`, `closed` | `hidden` | Admin | `admin_hide_report()` |
+| `active` | `hidden` | Admin | `admin_hide_report()` |
 | `hidden` | `active` | Admin | `admin_restore_report()` |
+
+Only active reports can be hidden. Restoring always returns a report to
+`active`, so hiding a resolved or closed report would bring it back onto
+the public list. Resolved and closed reports are already off the public
+list.
 
 Effects on claims:
 
@@ -516,8 +521,11 @@ Owners can edit content only while the report is `active`.
 | `pending` | `approved` | Report owner, admin | Report is active; no other approved claim on it; handover note given | `approve_claim()` |
 | `pending` | `rejected` | Report owner, admin | — | `reject_claim()` |
 | `approved` | `rejected` | Report owner, admin | Report is still active (the handover did not work out) | `reject_claim()` |
-| `pending`, `approved` | `cancelled` | Claimant | — | `cancel_claim()` |
+| `pending`, `approved` | `cancelled` | Claimant | Report is active (after a report is resolved, its approved claim is the record of the handover) | `cancel_claim()` |
 | `pending`, `approved` | `closed` | System | Report resolved (pending only), closed, or hidden | Inside the report functions |
+
+An admin can approve or reject claims on anyone's report, but not their
+own claim.
 
 A claimant can see the report only while it is `active` or while their
 claim is `pending` or `approved` (and never once it is `hidden`). After
@@ -538,6 +546,8 @@ General rules:
 - Text status fields with `check` constraints (easier to change than
   Postgres enums).
 - Length limits as `check` constraints that match the Zod schemas.
+  Minimum lengths are checked on `private.trim_text(column)`, never
+  `btrim()`, which removes only spaces.
 - User-owned rows reference `auth.users(id) on delete cascade`, so
   deleting an account deletes that person's data. Reviewer and admin
   references use `on delete set null`.
@@ -557,7 +567,9 @@ General rules:
 | `updated_at` | `timestamptz not null default now()` | |
 
 - Created automatically by a trigger when a user signs up (name taken
-  from sign-up metadata).
+  from sign-up metadata). If the name is missing or invalid, for
+  example for users added in the Supabase dashboard, it is set to
+  `MUET user` (`DEFAULT_FULL_NAME`), and the user can change it.
 - No email, phone, password, or role columns. Email lives in Supabase
   Auth.
 - Users read and update only their own row. Other people's names are
@@ -707,7 +719,7 @@ Access:
 | `action` | `text not null` | e.g. `hide_report`, `restore_report`, `review_flag` |
 | `target_type` | `text not null` | e.g. `item_report`, `abuse_report`, `claim` |
 | `target_id` | `uuid null` | |
-| `reason` | `text null` | |
+| `reason` | `text null` | 1–500 characters when set; the admin functions require it |
 | `created_at` | `timestamptz not null default now()` | |
 
 - Admins can read it. Only admin functions insert into it. Nobody
@@ -742,21 +754,35 @@ All functions that check permissions or change status:
   `authenticated`. This includes `is_admin()`: no visitor policy calls
   it.
 - Raise errors with the codes below so the UI can show friendly
-  messages.
+  messages. The error message is the code itself; for `INVALID_INPUT`,
+  the error detail names the field (for example `handover_note`).
+- Raise `NOT_FOUND` when the caller couldn't see the row under the
+  section 9.12 rules (so nobody can probe for IDs), and `NOT_ALLOWED`
+  when they can see it but may not do this. Admin functions check
+  "is admin" first, so non-admins always get `NOT_ALLOWED`.
+- Trim text input with `private.trim_text()`, check its length (the
+  same limits as Zod), and store it trimmed. Admin functions require
+  `p_reason`, 1–500 characters.
+- A function that reads a row and then changes it locks the report
+  first (`select ... for update`), then the claim, always in that order.
+  So two calls can't deadlock, and two people can't approve claims on
+  the same report at once. `submit_claim()` uses `for share`, so many
+  people can claim at once but the report can't change status
+  meanwhile.
 
 | Function | Who can call | What it does |
 |----------|--------------|--------------|
 | `is_admin()` returns `boolean` | Signed-in user; used inside policies and functions, and by the UI for display checks | True if `auth.uid()` is in `admins` |
 | `submit_claim(p_item_id uuid, p_message text)` returns `uuid` | Signed-in user | Creates a `pending` claim. Sets `claim_type` from the report type. Checks report is active, caller is not the owner, no open claim from the caller. |
-| `approve_claim(p_claim_id uuid, p_handover_note text)` | Report owner, admin | `pending` → `approved`. Checks report is active and no other approved claim. Saves the handover note, reviewer, and time. |
-| `reject_claim(p_claim_id uuid)` | Report owner, admin | `pending` or `approved` → `rejected`, while the report is active. |
-| `cancel_claim(p_claim_id uuid)` | Claimant | `pending` or `approved` → `cancelled`. |
-| `get_claim_contact(p_claim_id uuid)` returns `(full_name text, email text)` | Claimant or report owner | Returns the **other** person's name and email, only if the claim is `approved`. |
+| `approve_claim(p_claim_id uuid, p_handover_note text)` | Report owner, admin (not on their own claim) | `pending` → `approved`. Checks report is active and no other approved claim. Saves the handover note, reviewer, and time. |
+| `reject_claim(p_claim_id uuid)` | Report owner, admin (not on their own claim) | `pending` or `approved` → `rejected`, while the report is active. |
+| `cancel_claim(p_claim_id uuid)` | Claimant | `pending` or `approved` → `cancelled`, while the report is active. |
+| `get_claim_contact(p_claim_id uuid)` returns `(full_name text, email text)` | Claimant or report owner (not admins) | Returns the **other** person's name and email, only if the claim is `approved`. |
 | `resolve_report(p_item_id uuid)` | Report owner, admin | `active` → `resolved`, sets `resolved_at`, closes pending claims. |
 | `close_report(p_item_id uuid)` | Report owner, admin | `active` → `closed`, closes pending and approved claims. |
-| `admin_hide_report(p_item_id uuid, p_reason text)` | Admin | Any status except `hidden` → `hidden`, closes pending and approved claims, writes audit log. |
-| `admin_restore_report(p_item_id uuid, p_reason text)` | Admin | `hidden` → `active`, writes audit log. |
-| `admin_review_flag(p_flag_id uuid, p_status text, p_reason text)` | Admin | Sets an abuse report to `reviewing`, `actioned`, or `dismissed`, writes audit log. |
+| `admin_hide_report(p_item_id uuid, p_reason text)` | Admin | `active` → `hidden`, closes pending and approved claims, writes audit log. |
+| `admin_restore_report(p_item_id uuid, p_reason text)` | Admin | `hidden` → `active`, writes audit log. Claims stay closed. |
+| `admin_review_flag(p_flag_id uuid, p_status text, p_reason text)` | Admin | `open` → `reviewing`, `actioned`, or `dismissed`; `reviewing` → `actioned` or `dismissed`. `actioned` and `dismissed` are final. Writes audit log. |
 
 Policy helpers, in the `private` schema (not exposed by the API). Same
 rules as above, but only `authenticated` has `usage` on the schema and
@@ -770,6 +796,18 @@ only.
 | `private.is_report_owner(p_item_id uuid)` returns `boolean` | `item_private_details` and `claims` policies | True if the caller owns the report |
 | `private.has_claim_on_report(p_item_id uuid)` returns `boolean` | `item_reports` policy | True if the caller has a `pending` or `approved` claim on the report |
 
+Internal helpers, also in `private`, used only inside the functions
+above. Nobody but the table owner can execute them.
+
+| Function | What it does |
+|----------|--------------|
+| `private.can_see_report(p_item_id, p_owner_id, p_status)` | The `item_reports` read rule from 9.12, for functions that bypass RLS |
+| `private.lock_visible_report(p_item_id)` | Locks a report the caller can see; raises `NOT_SIGNED_IN` or `NOT_FOUND` |
+| `private.lock_visible_claim(p_claim_id)` | Locks a claim's report, then the claim, if the caller is the claimant, the report owner or an admin; raises `NOT_SIGNED_IN` or `NOT_FOUND` |
+| `private.require_admin()` | Raises `NOT_SIGNED_IN` or `NOT_ALLOWED` unless the caller is an admin |
+| `private.clean_admin_reason(p_reason)` | Returns the trimmed reason, or raises `INVALID_INPUT` |
+| `private.trim_text(p_text)` | Trims the same characters as JavaScript's `trim()` (which Zod's `.trim()` uses): spaces, tabs, newlines, and Unicode spaces. Used by the functions and by the length check constraints, so `authenticated` can execute it. |
+
 Error codes:
 
 | Code | Meaning |
@@ -782,15 +820,22 @@ Error codes:
 | `DUPLICATE_CLAIM` | The caller already has an open claim on this report |
 | `ALREADY_APPROVED` | Another claim on this report is already approved |
 | `INVALID_STATUS` | This status change is not allowed from the current status |
-| `INVALID_INPUT` | A text field is empty or too long |
+| `INVALID_INPUT` | A field is missing, too short, too long, or not allowed (for example a future `event_date` or a retired location); the error detail names the field |
 
 ### 9.11 Triggers
 
 | Trigger | Table | Purpose |
 |---------|-------|---------|
-| `handle_new_user` | `auth.users` (after insert) | Create the `profiles` row from sign-up metadata |
-| `set_updated_at` | All tables with `updated_at` | Keep `updated_at` correct |
-| `validate_item_report` | `item_reports` (before insert/update) | Check `event_date` against today in `Asia/Karachi`; check `image_path` starts with the owner's folder; reject an inactive `location_key` on insert, and on update only when `location_key` changes (so old reports can keep a retired location) |
+| `handle_new_user` | `auth.users` (after insert) | Create the `profiles` row from `full_name` in the sign-up metadata, trimmed; `MUET user` if it is missing or not 2–80 characters |
+| `set_updated_at` | `profiles`, `item_reports`, `item_private_details`, `claims` (before update) | Keep `updated_at` correct |
+| `validate_item_report` | `item_reports` (before insert/update) | Check `event_date` against today in `Asia/Karachi` (not after today, not more than 365 days ago); check `image_path` is `<owner user_id>/<uuid>.<jpg\|png\|webp>`; reject an inactive `location_key` |
+
+The trigger functions live in `private` (same names as the triggers).
+`validate_item_report` checks each field on insert, and on update only
+when that field changes. So a report can still be edited, resolved or
+restored after its `event_date` is more than 365 days old or its
+location has been retired. Each failure raises `INVALID_INPUT`, with
+the field name in the error detail.
 
 ### 9.12 Row Level Security summary
 
