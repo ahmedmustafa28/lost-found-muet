@@ -268,6 +268,9 @@ Use one repository and one web application.
 - [ ] Remove uploads that were never attached to a report, after a
       set time.
 - [ ] A limit on how many images one user can upload.
+- [ ] Upload a small thumbnail alongside each photo and use it on lists.
+      Today list cards load the full photo (free Supabase plans can't
+      resize images), relying on lazy loading.
 - [ ] Owner can reopen a closed report.
 - [ ] Require the current password to change it while signed in
       (today `/reset-password` works for any signed-in session).
@@ -652,7 +655,15 @@ So `user_id`, `status`, `resolved_at`, and `report_type` (after insert)
 cannot be changed by users at all.
 
 Search for the MVP: `ilike` on `title` and `description`, with `%`, `_`
-and `\` in user input escaped. Full-text search is P1.
+and `\` in user input escaped. PostgREST also treats `*` as a wildcard in
+`ilike` and it can't be escaped, so `*` is removed from search text.
+Search text is limited to 100 characters. Full-text search is P1.
+
+Lists (`/lost`, `/found`, the home page) show `active` reports only,
+newest first, 20 at a time. "Load more" is a link that raises `page` in
+the URL, up to 10 pages (200 items); after that, people narrow the list
+with search. The search text, category and location filters are in the
+URL too, so results can be shared and the back button works.
 
 ### 9.4 `item_private_details`
 
@@ -1156,7 +1167,11 @@ A publishable key is safe in the browser only because RLS is correct.
   just removes nothing. Check the list of removed files it returns.
 - Show images with short-lived signed URLs created on the server. A
   signed URL works for anyone who has it until it expires, so keep
-  expiry times short.
+  expiry times short: 5 minutes on item pages, 30 minutes on lists.
+  List photos load lazily as people scroll, often minutes later, and
+  lists show only `active`, public reports. The cost: a report hidden
+  after a list was loaded keeps a working photo link for up to 30
+  minutes.
 
 ### 11.2 Sensitive items
 

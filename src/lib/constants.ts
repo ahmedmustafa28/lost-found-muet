@@ -198,6 +198,23 @@ export const IMAGE_UPLOAD_QUALITY = 0.85;
 // short (DEVELOPMENT.md 11.1).
 export const IMAGE_SIGNED_URL_SECONDS = 300;
 
+// List photos load lazily as people scroll, often minutes after the page was
+// made, so they get longer. Lists only show active, public reports; a report
+// hidden later keeps a working photo link until this expires.
+export const IMAGE_LIST_SIGNED_URL_SECONDS = 30 * 60;
+
+// ---------- Lists and search ----------
+
+// "Load more" adds this many items each time, up to LIST_MAX_PAGES pages;
+// after that people narrow the list with search (DEVELOPMENT.md 18).
+export const LIST_PAGE_SIZE = 20;
+export const LIST_MAX_PAGES = 10;
+
+// Recent active reports on the home page.
+export const HOME_RECENT_COUNT = 6;
+
+export const SEARCH_MAX_LENGTH = 100;
+
 // Shown on the report form (DEVELOPMENT.md 8.3 and 11.2).
 export const REPORT_SAFETY_WARNING =
   "Don't publish ID numbers, phone numbers, addresses or financial details (such as card or account numbers), in the text or in the photo. Keep the public description general.";

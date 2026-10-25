@@ -4,10 +4,11 @@ type ChoiceFieldProps = {
   options: readonly { value: string; label: string }[];
   errors?: string[];
   required?: boolean;
+  defaultValue?: string;
 };
 
 // A group of radio buttons, with the same error wiring as TextField.
-export function ChoiceField({ legend, name, options, errors, required }: ChoiceFieldProps) {
+export function ChoiceField({ legend, name, options, errors, required, defaultValue }: ChoiceFieldProps) {
   const errorId = errors?.length ? `field-${name}-error` : undefined;
 
   return (
@@ -20,6 +21,7 @@ export function ChoiceField({ legend, name, options, errors, required }: ChoiceF
               type="radio"
               name={name}
               value={option.value}
+              defaultChecked={option.value === defaultValue}
               required={required}
               className="size-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             />

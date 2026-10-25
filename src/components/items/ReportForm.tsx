@@ -19,6 +19,7 @@ import {
   REPORT_TYPES,
   REPORT_TYPE_LABELS,
   TEXT_LIMITS,
+  type ReportType,
 } from "@/lib/constants";
 import { createReport } from "@/lib/reports/actions";
 import type { LocationOption } from "@/lib/reports/queries";
@@ -33,13 +34,14 @@ type ReportFormProps = {
   // Pakistan dates from the server: the default and the allowed range.
   today: string;
   minDate: string;
+  defaultType?: ReportType;
 };
 
 const typeOptions = REPORT_TYPES.map((value) => ({ value, label: REPORT_TYPE_LABELS[value] }));
 const categoryOptions = CATEGORIES.map((value) => ({ value, label: CATEGORY_LABELS[value] }));
 
 // On success the Server Action redirects to the new report's page.
-export function ReportForm({ userId, locations, today, minDate }: ReportFormProps) {
+export function ReportForm({ userId, locations, today, minDate, defaultType }: ReportFormProps) {
   const [photo, setPhoto] = useState<Blob | null>(null);
 
   // The photo goes straight from the browser to Storage, only once the form
@@ -80,6 +82,7 @@ export function ReportForm({ userId, locations, today, minDate }: ReportFormProp
         legend="Did you lose or find this item?"
         name="reportType"
         options={typeOptions}
+        defaultValue={defaultType}
         required
         errors={fieldErrors.reportType}
       />

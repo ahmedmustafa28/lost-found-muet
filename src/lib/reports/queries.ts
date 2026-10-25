@@ -1,6 +1,11 @@
 import type { Category, ReportStatus, ReportType } from "@/lib/constants";
-import { IMAGE_BUCKET, IMAGE_SIGNED_URL_SECONDS } from "@/lib/constants";
+import {
+  IMAGE_BUCKET,
+  IMAGE_LIST_SIGNED_URL_SECONDS,
+  IMAGE_SIGNED_URL_SECONDS,
+} from "@/lib/constants";
 import { getSignedInUserId } from "@/lib/auth/getSignedInUserId";
+import type { ListFilters } from "@/lib/reports/listParams";
 import { createClient } from "@/lib/supabase/server";
 
 // Reads for Server Components. RLS decides what each viewer can see
@@ -122,4 +127,99 @@ export async function getMyReports(userId: string): Promise<MyReport[]> {
     status: row.status as ReportStatus,
     eventDate: row.event_date,
   }));
+}
+
+// One card in a list (ItemCard). Never includes who reported the item.
+export type ItemSummary = {
+  id: string;
+  reportType: ReportType;
+  title: string;
+  category: Category;
+  locationLabel: string | null;
+  locationDetail: string | null;
+  eventDate: string;
+  imageUrl: string | null;
+};
+
+type ListOptions = {
+  // Null for both types (the home page).
+  reportType: ReportType | null;
+  filters?: Pick<ListFilters, "q" | "category" | "location">;
+  limit: number;
+};
+
+// ilike pattern for "contains this text": LIKE's own wildcards and its
+// escape character are escaped, so they match literally (DEVELOPMENT.md 9.3).
+function containsPattern(text: string): string {
+  return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+// A value inside PostgREST's or=(...) filter. Commas, dots and brackets would
+// end the value, so it is quoted, with \ and " escaped inside the quotes.
+function filterValue(value: string): string {
+  return `"${value.replace(/[\\"]/g, (c) => `\\${c}`)}"`;
+}
+
+// Active reports only, newest first. RLS also lets signed-in users read their
+// own closed reports, so the status filter is needed here, not just safe.
+export async function listActiveReports({
+  reportType,
+  filters,
+  limit,
+}: ListOptions): Promise<{ items: ItemSummary[]; hasMore: boolean }> {
+  const supabase = await createClient();
+  let query = supabase
+    .from("item_reports")
+    .select(
+      "id, report_type, title, category, location_detail, event_date, image_path, campus_locations ( label )",
+    )
+    .eq("status", "active");
+  if (reportType) query = query.eq("report_type", reportType);
+  if (filters?.category) query = query.eq("category", filters.category);
+  if (filters?.location) query = query.eq("location_key", filters.location);
+  if (filters?.q) {
+    const pattern = filterValue(containsPattern(filters.q));
+    query = query.or(`title.ilike.${pattern},description.ilike.${pattern}`);
+  }
+
+  // One extra row says whether there is more to load.
+  const { data, error } = await query
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit + 1);
+  if (error) throw new Error("Could not load the reports.");
+
+  const rows = data.slice(0, limit);
+  const imageUrls = await signImages(
+    rows.flatMap((row) => (row.image_path ? [row.image_path] : [])),
+  );
+
+  return {
+    hasMore: data.length > limit,
+    items: rows.map((row) => ({
+      id: row.id,
+      reportType: row.report_type as ReportType,
+      title: row.title,
+      category: row.category as Category,
+      locationLabel: row.campus_locations?.label ?? null,
+      locationDetail: row.location_detail,
+      eventDate: row.event_date,
+      imageUrl: row.image_path ? (imageUrls.get(row.image_path) ?? null) : null,
+    })),
+  };
+}
+
+// One Storage call for a whole page of photos (DEVELOPMENT.md 18). A photo
+// that can't be signed is left out and its card shows "No photo".
+async function signImages(paths: string[]): Promise<Map<string, string>> {
+  const urls = new Map<string, string>();
+  if (paths.length === 0) return urls;
+  const supabase = await createClient();
+  const { data } = await supabase.storage
+    .from(IMAGE_BUCKET)
+    .createSignedUrls(paths, IMAGE_LIST_SIGNED_URL_SECONDS);
+  for (const entry of data ?? []) {
+    if (!entry.error && entry.path && entry.signedUrl) urls.set(entry.path, entry.signedUrl);
+  }
+  return urls;
 }
