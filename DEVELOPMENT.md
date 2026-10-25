@@ -119,12 +119,12 @@ affects (especially permissions), and update this table when you do.
 | D-13 | Anonymous sign-ins stay off. Policies treat every signed-in user as a real, verified account. |
 | D-14 | **MUET student emails only.** An account's email must be a roll number at `students.muet.edu.pk`, for example `23sw016@students.muet.edu.pk`: a 2-digit batch year, a 2–4 letter department code, and a 1–3 digit serial number. Pattern (case-insensitive): `^[0-9]{2}[a-z]{2,4}[0-9]{1,3}@students\.muet\.edu\.pk$`. Addresses at plain `muet.edu.pk` and other subdomains such as `fake.students.muet.edu.pk` do not match. A "before user created" auth hook enforces it at sign-up, a trigger stops an account changing to another email (9.10, 9.11), and the register form checks it too. The pattern lives in `src/lib/constants.ts` and `private.student_email_pattern()`, and a test fails if they differ. |
 | D-15 | **Auth emails through Gmail SMTP for the pilot.** Sign-up and password-reset emails go through custom SMTP with a dedicated Gmail account: `smtp.gmail.com`, port 587, an app password, about 500 emails a day. It is configured in the Supabase dashboard, and the credentials stay there (10.4). Before a wider launch, move to a transactional email provider with our own domain (P1). See section 17. |
+| D-16 | **Campus locations.** The list is seeded by the `seed_campus_locations` migration, in this order: the library, STC, cafeteria, sports grounds, gym, university bus point, main gate, mosque, admin block, MUISTD, the 18 departments (A–Z), the 9 hostels, and `other` last. Keys are stable lowercase (`library`, `dept_civil`, `hostel_elsa_kazi`) and are never renamed once reports use them: to retire one, set `is_active = false` and add a new row. `sort_order` goes up in tens. Any change is a new migration (9.2). |
 
 ### 2.1 Open decisions (settle before Milestone 2)
 
 | ID | Question | Recommendation |
 |----|----------|----------------|
-| O-02 | What is the real list of campus locations? | Walk the campus and list departments, library, cafeterias, hostels, gates, transport stops, sports areas, and so on. Use stable keys (`library`, `main_cafeteria`) and friendly labels. |
 | O-04 | Who acts as admin during the pilot? | You, at first. Hand over to a staff member only if the university agrees. Staff can't register (D-14), so their account would have to be added by hand in the dashboard. |
 
 ---
@@ -268,6 +268,9 @@ Use one repository and one web application.
 - [ ] Remove uploads that were never attached to a report, after a
       set time.
 - [ ] A limit on how many images one user can upload.
+- [ ] Upload a small thumbnail alongside each photo and use it on lists.
+      Today list cards load the full photo (free Supabase plans can't
+      resize images), relying on lazy loading.
 - [ ] Owner can reopen a closed report.
 - [ ] Require the current password to change it while signed in
       (today `/reset-password` works for any signed-in session).
@@ -470,6 +473,16 @@ Validation rules:
   functions.
 - Show a warning not to publish ID numbers, phone numbers, addresses,
   or financial information.
+- The report and its private details are two writes. If the private
+  details fail after the report is saved (on create or edit), the report
+  is kept and its page tells the owner to edit it and add them again.
+- Editing (`/items/[id]/edit`) uses the same form and rules, pre-filled,
+  for the owner of an `active` report only; anyone else sees the
+  not-found page. The report type is shown but can't be changed. A saved
+  date older than 365 days is accepted if it isn't changed, and a
+  retired location stays selectable as "Current location (no longer
+  listed)", matching `validate_item_report`, which checks those fields
+  only when they change.
 
 ### 8.4 Claim form fields
 
@@ -604,8 +617,9 @@ General rules:
 | `is_active` | `boolean not null default true` | Hide old locations without breaking old reports |
 
 - Everyone can read active rows. Only admins edit it (dashboard or SQL).
-- Seed with the real list once O-02 is decided. Use placeholders until
-  then.
+- Seeded with the real list by the `seed_campus_locations` migration
+  (D-16), so it reaches each hosted project with the other migrations.
+  Add, retire, or relabel locations in a new migration.
 
 ### 9.3 `item_reports`
 
@@ -647,7 +661,15 @@ So `user_id`, `status`, `resolved_at`, and `report_type` (after insert)
 cannot be changed by users at all.
 
 Search for the MVP: `ilike` on `title` and `description`, with `%`, `_`
-and `\` in user input escaped. Full-text search is P1.
+and `\` in user input escaped. PostgREST also treats `*` as a wildcard in
+`ilike` and it can't be escaped, so `*` is removed from search text.
+Search text is limited to 100 characters. Full-text search is P1.
+
+Lists (`/lost`, `/found`, the home page) show `active` reports only,
+newest first, 20 at a time. "Load more" is a link that raises `page` in
+the URL, up to 10 pages (200 items); after that, people narrow the list
+with search. The search text, category and location filters are in the
+URL too, so results can be shared and the back button works.
 
 ### 9.4 `item_private_details`
 
@@ -661,6 +683,9 @@ and `\` in user input escaped. Full-text search is P1.
 - Readable only by the owner of the linked report and admins.
 - Insertable and updatable only by the owner, and only while the report
   is `active` (the same rule as report content, section 8.6).
+- Can't be removed in the MVP: there is no delete rule and `details`
+  can't be empty. The form says so, and emptying saved details is
+  refused before anything is written.
 - This is a separate table because RLS works on rows. If this text were
   a column in `item_reports`, anyone who can read the report could read
   it.
@@ -937,8 +962,9 @@ tell that two rows came from the same account. See the P1 list.
   4. `storage` — the `item-images` bucket and its policies.
   5. `restrict_signup_domain` — the student-email sign-up hook and the
      email-change trigger (D-14).
-- `supabase/seed.sql` holds placeholder locations and fictional
-  reports only.
+  6. `seed_campus_locations` — the real campus locations (D-16).
+- `supabase/seed.sql`, if added, holds fictional reports only. Campus
+  locations come from the migration above.
 - Never edit a migration that has already been merged or applied. Write
   a new one.
 - Never change the schema in the dashboard without a matching
@@ -1147,10 +1173,19 @@ A publishable key is safe in the browser only because RLS is correct.
      still points to it.
 
   Storage's remove does not report an error when a policy blocks it; it
-  just removes nothing. Check the list of removed files it returns.
+  just removes nothing. The app doesn't check what it removed: it only
+  deletes a file after no report points to it (an upload whose report
+  wasn't saved, or a photo that was just replaced or removed), so a
+  failed or blocked delete can only leave an unused file in Storage,
+  never a report pointing to a missing one. Unused files are the P1
+  clean-up item.
 - Show images with short-lived signed URLs created on the server. A
   signed URL works for anyone who has it until it expires, so keep
-  expiry times short.
+  expiry times short: 5 minutes on item pages, 30 minutes on lists.
+  List photos load lazily as people scroll, often minutes later, and
+  lists show only `active`, public reports. The cost: a report hidden
+  after a list was loaded keeps a working photo link for up to 30
+  minutes.
 
 ### 11.2 Sensitive items
 

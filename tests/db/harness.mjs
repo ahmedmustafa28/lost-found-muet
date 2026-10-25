@@ -8,7 +8,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 const migrationsDir = fileURLToPath(new URL("../../supabase/migrations/", import.meta.url));
 
-export async function setup() {
+export async function setup({ keepSeededLocations = false } = {}) {
   const db = new PGlite();
   let pass = 0, fail = 0;
   const ok = (name) => { pass++; console.log(`  PASS  ${name}`); };
@@ -105,6 +105,11 @@ export async function setup() {
   for (const file of readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort()) {
     await expectOk(file, readFileSync(join(migrationsDir, file), "utf8"));
   }
+
+  // The seed_campus_locations migration adds the real list. Most tests set
+  // up their own small list instead, so it is removed unless asked for
+  // (campusLocations.mjs checks it).
+  if (!keepSeededLocations) await db.exec("delete from public.campus_locations");
 
   return { db, ok, bad, check, expectOk, expectError, expectValue, actAs, finish };
 }

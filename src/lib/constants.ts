@@ -179,6 +179,61 @@ export const IMAGE_EXTENSIONS: Record<ImageType, string> = {
 
 export const IMAGE_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
+// The private Storage bucket for report photos (DEVELOPMENT.md 11.1).
+export const IMAGE_BUCKET = "item-images";
+
+// The photo someone picks may be larger than IMAGE_MAX_BYTES: phone photos
+// often are. Only the re-encoded copy is uploaded, and that copy must fit
+// IMAGE_MAX_BYTES (the bucket enforces it too).
+export const IMAGE_ORIGINAL_MAX_BYTES = 20 * 1024 * 1024; // 20 MB
+
+// The browser re-encodes every photo before upload: longest side at most this
+// many pixels, saved as JPEG. Re-encoding drops EXIF data, including GPS.
+export const IMAGE_MAX_DIMENSION = 1600;
+export const IMAGE_UPLOAD_TYPE = "image/jpeg";
+export const IMAGE_UPLOAD_EXTENSION = "jpg";
+export const IMAGE_UPLOAD_QUALITY = 0.85;
+
+// Signed URLs work for anyone who has them until they expire, so keep this
+// short (DEVELOPMENT.md 11.1).
+export const IMAGE_SIGNED_URL_SECONDS = 300;
+
+// List photos load lazily as people scroll, often minutes after the page was
+// made, so they get longer. Lists only show active, public reports; a report
+// hidden later keeps a working photo link until this expires.
+export const IMAGE_LIST_SIGNED_URL_SECONDS = 30 * 60;
+
+// ---------- Lists and search ----------
+
+// "Load more" adds this many items each time, up to LIST_MAX_PAGES pages;
+// after that people narrow the list with search (DEVELOPMENT.md 18).
+export const LIST_PAGE_SIZE = 20;
+export const LIST_MAX_PAGES = 10;
+
+// Recent active reports on the home page.
+export const HOME_RECENT_COUNT = 6;
+
+export const SEARCH_MAX_LENGTH = 100;
+
+// Shown on the report form (DEVELOPMENT.md 8.3 and 11.2).
+export const REPORT_SAFETY_WARNING =
+  "Don't publish ID numbers, phone numbers, addresses or financial details (such as card or account numbers), in the text or in the photo. Keep the public description general.";
+export const PRIVATE_DETAILS_HELP =
+  "Only you and site admins can see this. Use it to check claims later, for example \"my name is written inside the front cover\". Once added, private details can't be removed, but you can change the text.";
+
+// The database has no delete rule for private details and doesn't allow
+// empty ones (DEVELOPMENT.md 9.4).
+export const PRIVATE_DETAILS_CANNOT_REMOVE =
+  "Private details can't be removed once added. You can change the text instead.";
+
+// close_report() raises INVALID_STATUS when the report has already ended.
+export const REPORT_ALREADY_ENDED_MESSAGE = "This report is already closed or resolved.";
+
+// Shown to the owner on the item page when the report was saved but its
+// private details weren't.
+export const PRIVATE_DETAILS_NOT_SAVED_MESSAGE =
+  "Your report was saved, but the private details weren't. Edit the report to add them again.";
+
 // ---------- Errors ----------
 
 // Codes raised by the database functions (DEVELOPMENT.md section 9.10).

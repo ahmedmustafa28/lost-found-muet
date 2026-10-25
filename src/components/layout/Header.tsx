@@ -20,6 +20,16 @@ export async function Header() {
           Lost &amp; Found MUET
         </Link>
         <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          <li>
+            <Link href="/lost" className={linkClass}>
+              Lost items
+            </Link>
+          </li>
+          <li>
+            <Link href="/found" className={linkClass}>
+              Found items
+            </Link>
+          </li>
           {user ? (
             <>
               {/* Always visible, so nobody uses someone else's account
@@ -29,6 +39,11 @@ export async function Header() {
                   Signed in as {user.email}
                 </li>
               )}
+              <li>
+                <Link href="/report" className={linkClass}>
+                  Report an item
+                </Link>
+              </li>
               <li>
                 <Link href="/dashboard" className={linkClass}>
                   Dashboard
