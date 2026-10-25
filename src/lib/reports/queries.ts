@@ -7,12 +7,11 @@ import {
 import { getSignedInUserId } from "@/lib/auth/getSignedInUserId";
 import type { ListFilters } from "@/lib/reports/listParams";
 import { createClient } from "@/lib/supabase/server";
+import { isUuid } from "@/lib/uuid";
 
 // Reads for Server Components. RLS decides what each viewer can see
 // (DEVELOPMENT.md 9.12); these only shape the rows for the pages. A failed
 // read throws, so the route's error.tsx shows a friendly message.
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type LocationOption = { key: string; label: string };
 
@@ -51,7 +50,7 @@ export type ReportView = {
 
 // Null when the report doesn't exist or the viewer isn't allowed to see it.
 export async function getReport(id: string): Promise<ReportView | null> {
-  if (!UUID.test(id)) return null;
+  if (!isUuid(id)) return null;
 
   const supabase = await createClient();
   const userId = await getSignedInUserId(supabase);
@@ -100,6 +99,74 @@ export async function getReport(id: string): Promise<ReportView | null> {
     imageUrl,
     isOwner,
     privateDetails,
+  };
+}
+
+// Everything the edit form needs. Only for the owner of an active report:
+// the same rule as the item_reports update policy (DEVELOPMENT.md 8.6).
+export type EditableReport = {
+  id: string;
+  reportType: ReportType;
+  title: string;
+  description: string;
+  category: Category;
+  locationKey: string;
+  // Null when the location has been retired.
+  locationLabel: string | null;
+  locationDetail: string | null;
+  eventDate: string;
+  hasPhoto: boolean;
+  // Null if there is no photo, or its preview link couldn't be made.
+  imageUrl: string | null;
+  privateDetails: string | null;
+};
+
+// Null for anyone but the owner, and once the report is no longer active.
+export async function getReportForEdit(id: string): Promise<EditableReport | null> {
+  if (!isUuid(id)) return null;
+
+  const supabase = await createClient();
+  const userId = await getSignedInUserId(supabase);
+  if (!userId) return null;
+
+  const { data: row, error } = await supabase
+    .from("item_reports")
+    .select(
+      "id, user_id, status, report_type, title, description, category, location_key, location_detail, event_date, image_path, campus_locations ( label )",
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error("Could not load the report.");
+  if (!row || row.user_id !== userId || row.status !== "active") return null;
+
+  let imageUrl: string | null = null;
+  if (row.image_path) {
+    const { data } = await supabase.storage
+      .from(IMAGE_BUCKET)
+      .createSignedUrl(row.image_path, IMAGE_SIGNED_URL_SECONDS);
+    imageUrl = data?.signedUrl ?? null;
+  }
+
+  const { data: details, error: detailsError } = await supabase
+    .from("item_private_details")
+    .select("details")
+    .eq("item_id", id)
+    .maybeSingle();
+  if (detailsError) throw new Error("Could not load the private details.");
+
+  return {
+    id: row.id,
+    reportType: row.report_type as ReportType,
+    title: row.title,
+    description: row.description,
+    category: row.category as Category,
+    locationKey: row.location_key,
+    locationLabel: row.campus_locations?.label ?? null,
+    locationDetail: row.location_detail,
+    eventDate: row.event_date,
+    hasPhoto: row.image_path !== null,
+    imageUrl,
+    privateDetails: details?.details ?? null,
   };
 }
 

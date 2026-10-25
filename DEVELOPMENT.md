@@ -473,10 +473,16 @@ Validation rules:
   functions.
 - Show a warning not to publish ID numbers, phone numbers, addresses,
   or financial information.
-- The report and its private details are two inserts. If the private
-  details fail after the report is saved, the report is kept and its
-  page tells the owner; they can add the details once editing exists
-  (Milestone 3, slice 3).
+- The report and its private details are two writes. If the private
+  details fail after the report is saved (on create or edit), the report
+  is kept and its page tells the owner to edit it and add them again.
+- Editing (`/items/[id]/edit`) uses the same form and rules, pre-filled,
+  for the owner of an `active` report only; anyone else sees the
+  not-found page. The report type is shown but can't be changed. A saved
+  date older than 365 days is accepted if it isn't changed, and a
+  retired location stays selectable as "Current location (no longer
+  listed)", matching `validate_item_report`, which checks those fields
+  only when they change.
 
 ### 8.4 Claim form fields
 
@@ -677,6 +683,9 @@ URL too, so results can be shared and the back button works.
 - Readable only by the owner of the linked report and admins.
 - Insertable and updatable only by the owner, and only while the report
   is `active` (the same rule as report content, section 8.6).
+- Can't be removed in the MVP: there is no delete rule and `details`
+  can't be empty. The form says so, and emptying saved details is
+  refused before anything is written.
 - This is a separate table because RLS works on rows. If this text were
   a column in `item_reports`, anyone who can read the report could read
   it.

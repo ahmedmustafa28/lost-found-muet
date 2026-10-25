@@ -219,12 +219,20 @@ export const SEARCH_MAX_LENGTH = 100;
 export const REPORT_SAFETY_WARNING =
   "Don't publish ID numbers, phone numbers, addresses or financial details (such as card or account numbers), in the text or in the photo. Keep the public description general.";
 export const PRIVATE_DETAILS_HELP =
-  "Only you can see this. Use it to check claims later, for example \"my name is written inside the front cover\".";
+  "Only you can see this. Use it to check claims later, for example \"my name is written inside the front cover\". Once added, private details can't be removed, but you can change the text.";
+
+// The database has no delete rule for private details and doesn't allow
+// empty ones (DEVELOPMENT.md 9.4).
+export const PRIVATE_DETAILS_CANNOT_REMOVE =
+  "Private details can't be removed once added. You can change the text instead.";
+
+// close_report() raises INVALID_STATUS when the report has already ended.
+export const REPORT_ALREADY_ENDED_MESSAGE = "This report is already closed or resolved.";
 
 // Shown to the owner on the item page when the report was saved but its
 // private details weren't.
 export const PRIVATE_DETAILS_NOT_SAVED_MESSAGE =
-  "Your report was saved, but the private details weren't. You'll be able to add them when editing reports is available.";
+  "Your report was saved, but the private details weren't. Edit the report to add them again.";
 
 // ---------- Errors ----------
 

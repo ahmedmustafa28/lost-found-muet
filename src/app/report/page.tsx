@@ -34,6 +34,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/report">)
         </FormMessage>
       ) : (
         <ReportForm
+          mode="create"
           userId={userId}
           locations={locations}
           today={today}

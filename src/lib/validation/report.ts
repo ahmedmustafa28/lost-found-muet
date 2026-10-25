@@ -31,16 +31,20 @@ const optionalText = (max: number) =>
     .optional()
     .transform((value) => value || null);
 
-const eventDate = z
-  .string()
-  .trim()
-  .refine(isValidDate, { error: "Enter the date.", abort: true })
-  .refine((date) => date <= eventDateRange().max, {
-    error: "The date can't be after today.",
-  })
-  .refine((date) => date >= eventDateRange().min, {
-    error: `The date can't be more than ${EVENT_DATE_MAX_DAYS_AGO} days ago.`,
-  });
+// When editing, the report's saved date is accepted even if it is now more
+// than EVENT_DATE_MAX_DAYS_AGO days old, as validate_item_report only checks
+// the date when it changes.
+const eventDateSchema = (unchanged?: string) =>
+  z
+    .string()
+    .trim()
+    .refine(isValidDate, { error: "Enter the date.", abort: true })
+    .refine((date) => date === unchanged || date <= eventDateRange().max, {
+      error: "The date can't be after today.",
+    })
+    .refine((date) => date === unchanged || date >= eventDateRange().min, {
+      error: `The date can't be more than ${EVENT_DATE_MAX_DAYS_AGO} days ago.`,
+    });
 
 export const reportSchema = z.object({
   reportType: z.enum(REPORT_TYPES, { error: "Choose lost or found." }),
@@ -55,11 +59,23 @@ export const reportSchema = z.object({
     TEXT_LIMITS.description,
     `Enter a description (at least ${TEXT_LIMITS.description.min} characters).`,
   ),
-  eventDate,
+  eventDate: eventDateSchema(),
   privateDetails: optionalText(TEXT_LIMITS.privateDetails.max),
 });
 
 export type ReportInput = z.output<typeof reportSchema>;
+
+// Editing: the same fields without the type, which can't change.
+export function editReportSchema(savedEventDate: string) {
+  return reportSchema
+    .omit({ reportType: true })
+    .extend({ eventDate: eventDateSchema(savedEventDate) });
+}
+
+// What to do with the photo when saving an edit (DEVELOPMENT.md 11.1).
+export const PHOTO_CHANGES = ["keep", "replace", "remove"] as const;
+export type PhotoChange = (typeof PHOTO_CHANGES)[number];
+export const photoChangeSchema = z.enum(PHOTO_CHANGES);
 
 // The path the browser uploaded the photo to: <user_id>/<uuid>.jpg in the
 // signed-in user's own folder. Checked against the session's user id, never
