@@ -2,6 +2,26 @@
 // constraints. If you change one here, change the database in a migration
 // too (DEVELOPMENT.md section 9).
 
+// ---------- Accounts ----------
+
+// Only MUET students can register (DEVELOPMENT.md D-14): a roll number at
+// students.muet.edu.pk, for example 23sw016@students.muet.edu.pk. Matched
+// case-insensitively.
+// Kept as a string so the database's copy (private.student_email_pattern())
+// can be compared with it exactly; tests/db/signupEmail.mjs fails if they
+// differ.
+export const STUDENT_EMAIL_PATTERN =
+  "^[0-9]{2}[a-z]{2,4}[0-9]{1,3}@students\\.muet\\.edu\\.pk$";
+
+// Also the database hook's message, so the form and the server agree.
+export const STUDENT_EMAIL_MESSAGE =
+  "Use your MUET student email (your roll number, for example 23sw016@students.muet.edu.pk).";
+
+// Must match minimum_password_length in supabase/config.toml and in the
+// dashboard (DEVELOPMENT.md 10.1). Supabase can't use more than 72.
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MAX_LENGTH = 72;
+
 // ---------- Item reports ----------
 
 export const REPORT_TYPES = ["lost", "found"] as const;
@@ -190,3 +210,28 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
 // Shown for any error without a known code, so raw database errors never
 // reach the user.
 export const GENERIC_ERROR_MESSAGE = "Something went wrong. Please try again.";
+
+// Supabase Auth error codes (error.code) the app expects; any other code gets
+// GENERIC_ERROR_MESSAGE.
+export const AUTH_ERROR_MESSAGES: Record<string, string> = {
+  invalid_credentials: "Your email or password is incorrect.",
+  email_not_confirmed:
+    "Please confirm your email first. Check your MUET inbox for the link.",
+  weak_password: "Choose a stronger password.",
+  same_password: "Your new password must be different from your old one.",
+  over_email_send_rate_limit:
+    "Too many emails were sent. Please wait a few minutes and try again.",
+  over_request_rate_limit:
+    "Too many attempts. Please wait a few minutes and try again.",
+  email_address_invalid: STUDENT_EMAIL_MESSAGE,
+  signup_disabled: "Registration is closed at the moment.",
+};
+
+// Shown on /login when an email link can't be used.
+export const AUTH_LINK_ERROR_MESSAGE =
+  "This link is invalid or has expired. Please try again or request a new email.";
+
+// The same whatever happens, so the page never reveals whether an email is
+// registered.
+export const PASSWORD_RESET_SENT_MESSAGE =
+  "If an account exists for that email, we've sent a link to reset your password. Check your MUET inbox.";

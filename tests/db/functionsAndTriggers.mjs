@@ -98,8 +98,10 @@ const INTERNAL_FUNCTIONS = [
   "private.lock_visible_claim(uuid)", "private.require_admin()", "private.clean_admin_reason(text)",
   "private.handle_new_user()", "private.set_updated_at()", "private.validate_item_report()",
 ];
-await expectValue("functions in public (is_admin plus the app functions)",
-  "select count(*) from pg_proc where pronamespace = 'public'::regnamespace", APP_FUNCTIONS.length + 1);
+// Plus 2: is_admin, and the sign-up hook restrict_signup_domain (only
+// Supabase Auth can run it; tested in signupEmail.mjs).
+await expectValue("functions in public (is_admin, the app functions and the sign-up hook)",
+  "select count(*) from pg_proc where pronamespace = 'public'::regnamespace", APP_FUNCTIONS.length + 2);
 for (const fn of [...APP_FUNCTIONS, ...INTERNAL_FUNCTIONS]) {
   await expectValue(`${fn} search_path ''`, `select proconfig = array['search_path=""'] from pg_proc where oid = '${fn}'::regprocedure`, true);
   await expectValue(`${fn} executable by anon`, `select has_function_privilege('anon', '${fn}', 'execute')`, false);
