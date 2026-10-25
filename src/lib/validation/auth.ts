@@ -6,11 +6,11 @@ import {
   STUDENT_EMAIL_PATTERN,
   TEXT_LIMITS,
 } from "@/lib/constants";
+import { text } from "@/lib/validation/text";
 
 // Used in the browser for instant errors and again in the Server Actions.
 
-const fullName = z
-  .string()
+const fullName = text()
   .trim()
   .min(
     TEXT_LIMITS.fullName.min,
@@ -21,17 +21,18 @@ const fullName = z
     `Use ${TEXT_LIMITS.fullName.max} characters or fewer.`,
   );
 
-const studentEmail = z
-  .string()
+const studentEmail = text()
   .trim()
   .regex(new RegExp(STUDENT_EMAIL_PATTERN, "i"), STUDENT_EMAIL_MESSAGE);
 
 // Login and password reset accept any email: accounts added in the dashboard
 // may not be student emails, and a stricter check here would only reveal
 // which emails can exist.
-const email = z.string().trim().min(1, "Enter your email address.");
+const email = text().trim().min(1, "Enter your email address.");
 
-// Not trimmed: a password may start or end with a space.
+// Not trimmed: a password may start or end with a space. Passwords also keep
+// any null characters: they go to Supabase Auth to be hashed, never into a
+// Postgres text column, and quietly changing a password would be worse.
 const newPassword = z
   .string()
   .min(PASSWORD_MIN_LENGTH, `Use at least ${PASSWORD_MIN_LENGTH} characters.`)

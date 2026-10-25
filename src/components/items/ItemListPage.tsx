@@ -50,7 +50,11 @@ export async function ItemListPage({
         <p className="text-neutral-700 dark:text-neutral-300">{copy.intro}</p>
       </div>
       <SearchFilters path={path} filters={filters} locations={locations} />
-      <section aria-label="Results">
+      {/* The cards use h3, so the list needs an h2 above them. */}
+      <section aria-labelledby="results-heading" className="flex flex-col gap-3">
+        <h2 id="results-heading" className="text-lg font-semibold">
+          {hasFilters(filters) ? "Search results" : "Newest first"}
+        </h2>
         <ItemList
           items={items}
           loadMoreHref={canLoadMore ? listHref(path, { ...filters, page: filters.page + 1 }) : null}

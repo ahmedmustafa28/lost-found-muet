@@ -7,6 +7,7 @@ import {
   TEXT_LIMITS,
 } from "@/lib/constants";
 import { eventDateRange, isValidDate } from "@/lib/dates";
+import { text } from "@/lib/validation/text";
 
 // Used in the browser for instant errors and again in the Server Action. The
 // database checks the same limits (trimmed) and the same date range.
@@ -16,16 +17,14 @@ const requiredText = (
   limits: { min: number; max: number },
   tooShort: string,
 ) =>
-  z
-    .string()
+  text()
     .trim()
     .min(limits.min, tooShort)
     .max(limits.max, `Use ${limits.max} characters or fewer.`);
 
 // Empty means "not given", saved as null (or, for private details, no row).
 const optionalText = (max: number) =>
-  z
-    .string()
+  text()
     .trim()
     .max(max, `Use ${max} characters or fewer.`)
     .optional()
@@ -35,8 +34,7 @@ const optionalText = (max: number) =>
 // than EVENT_DATE_MAX_DAYS_AGO days old, as validate_item_report only checks
 // the date when it changes.
 const eventDateSchema = (unchanged?: string) =>
-  z
-    .string()
+  text()
     .trim()
     .refine(isValidDate, { error: "Enter the date.", abort: true })
     .refine((date) => date === unchanged || date <= eventDateRange().max, {
@@ -53,7 +51,7 @@ export const reportSchema = z.object({
     `Enter a title (at least ${TEXT_LIMITS.title.min} characters).`,
   ),
   category: z.enum(CATEGORIES, { error: "Choose a category." }),
-  locationKey: z.string().trim().min(1, "Choose a location."),
+  locationKey: text().trim().min(1, "Choose a location."),
   locationDetail: optionalText(TEXT_LIMITS.locationDetail.max),
   description: requiredText(
     TEXT_LIMITS.description,

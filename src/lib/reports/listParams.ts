@@ -4,6 +4,7 @@ import {
   SEARCH_MAX_LENGTH,
   type Category,
 } from "@/lib/constants";
+import { stripNul } from "@/lib/validation/text";
 
 // The /lost and /found filters live in the URL, so results can be shared and
 // the back button works. Anything unexpected is ignored rather than shown as
@@ -23,8 +24,9 @@ const first = (value: string | string[] | undefined) =>
 
 export function parseListParams(params: RawSearchParams): ListFilters {
   // PostgREST treats "*" as a wildcard in ilike patterns and it can't be
-  // escaped, so it is removed (DEVELOPMENT.md 9.3).
-  const q = (first(params.q) ?? "")
+  // escaped, so it is removed (DEVELOPMENT.md 9.3). Null characters would
+  // make the query fail, so they go too.
+  const q = stripNul(first(params.q) ?? "")
     .replaceAll("*", " ")
     .replace(/\s+/g, " ")
     .trim()

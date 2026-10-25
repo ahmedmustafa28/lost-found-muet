@@ -219,7 +219,7 @@ export const SEARCH_MAX_LENGTH = 100;
 export const REPORT_SAFETY_WARNING =
   "Don't publish ID numbers, phone numbers, addresses or financial details (such as card or account numbers), in the text or in the photo. Keep the public description general.";
 export const PRIVATE_DETAILS_HELP =
-  "Only you can see this. Use it to check claims later, for example \"my name is written inside the front cover\". Once added, private details can't be removed, but you can change the text.";
+  "Only you and site admins can see this. Use it to check claims later, for example \"my name is written inside the front cover\". Once added, private details can't be removed, but you can change the text.";
 
 // The database has no delete rule for private details and doesn't allow
 // empty ones (DEVELOPMENT.md 9.4).

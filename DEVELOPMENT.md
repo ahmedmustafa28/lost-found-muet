@@ -1173,7 +1173,12 @@ A publishable key is safe in the browser only because RLS is correct.
      still points to it.
 
   Storage's remove does not report an error when a policy blocks it; it
-  just removes nothing. Check the list of removed files it returns.
+  just removes nothing. The app doesn't check what it removed: it only
+  deletes a file after no report points to it (an upload whose report
+  wasn't saved, or a photo that was just replaced or removed), so a
+  failed or blocked delete can only leave an unused file in Storage,
+  never a report pointing to a missing one. Unused files are the P1
+  clean-up item.
 - Show images with short-lived signed URLs created on the server. A
   signed URL works for anyone who has it until it expires, so keep
   expiry times short: 5 minutes on item pages, 30 minutes on lists.

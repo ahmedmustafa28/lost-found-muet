@@ -92,6 +92,9 @@ export function ReportForm(props: ReportFormProps) {
       {report ? (
         <>
           <input type="hidden" name="id" value={report.id} />
+          {/* Without JavaScript the form posts as is and keeps the photo.
+              With it, uploadPhoto sets the real choice, replacing this. */}
+          <input type="hidden" name="photoChange" value="keep" />
           <p>
             <span className="font-medium">Report type:</span>{" "}
             {REPORT_TYPE_LABELS[report.reportType]} item (this can&apos;t be changed)

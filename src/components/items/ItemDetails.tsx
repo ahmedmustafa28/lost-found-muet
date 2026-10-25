@@ -52,7 +52,9 @@ export function ItemDetails({ report }: { report: ReportView }) {
       {report.isOwner && (
         <section className="flex flex-col gap-2 rounded-md border border-neutral-300 p-4 dark:border-neutral-700">
           <h2 className="text-lg font-semibold">Private details</h2>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">Only you can see this.</p>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            Only you and site admins can see this.
+          </p>
           <p className="whitespace-pre-line break-words">
             {report.privateDetails ?? "You didn't add any private details."}
           </p>
