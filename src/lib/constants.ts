@@ -179,6 +179,36 @@ export const IMAGE_EXTENSIONS: Record<ImageType, string> = {
 
 export const IMAGE_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
+// The private Storage bucket for report photos (DEVELOPMENT.md 11.1).
+export const IMAGE_BUCKET = "item-images";
+
+// The photo someone picks may be larger than IMAGE_MAX_BYTES: phone photos
+// often are. Only the re-encoded copy is uploaded, and that copy must fit
+// IMAGE_MAX_BYTES (the bucket enforces it too).
+export const IMAGE_ORIGINAL_MAX_BYTES = 20 * 1024 * 1024; // 20 MB
+
+// The browser re-encodes every photo before upload: longest side at most this
+// many pixels, saved as JPEG. Re-encoding drops EXIF data, including GPS.
+export const IMAGE_MAX_DIMENSION = 1600;
+export const IMAGE_UPLOAD_TYPE = "image/jpeg";
+export const IMAGE_UPLOAD_EXTENSION = "jpg";
+export const IMAGE_UPLOAD_QUALITY = 0.85;
+
+// Signed URLs work for anyone who has them until they expire, so keep this
+// short (DEVELOPMENT.md 11.1).
+export const IMAGE_SIGNED_URL_SECONDS = 300;
+
+// Shown on the report form (DEVELOPMENT.md 8.3 and 11.2).
+export const REPORT_SAFETY_WARNING =
+  "Don't publish ID numbers, phone numbers, addresses or financial details (such as card or account numbers), in the text or in the photo. Keep the public description general.";
+export const PRIVATE_DETAILS_HELP =
+  "Only you can see this. Use it to check claims later, for example \"my name is written inside the front cover\".";
+
+// Shown to the owner on the item page when the report was saved but its
+// private details weren't.
+export const PRIVATE_DETAILS_NOT_SAVED_MESSAGE =
+  "Your report was saved, but the private details weren't. You'll be able to add them when editing reports is available.";
+
 // ---------- Errors ----------
 
 // Codes raised by the database functions (DEVELOPMENT.md section 9.10).

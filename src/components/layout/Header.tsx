@@ -30,6 +30,11 @@ export async function Header() {
                 </li>
               )}
               <li>
+                <Link href="/report" className={linkClass}>
+                  Report an item
+                </Link>
+              </li>
+              <li>
                 <Link href="/dashboard" className={linkClass}>
                   Dashboard
                 </Link>

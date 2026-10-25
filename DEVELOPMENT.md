@@ -119,12 +119,12 @@ affects (especially permissions), and update this table when you do.
 | D-13 | Anonymous sign-ins stay off. Policies treat every signed-in user as a real, verified account. |
 | D-14 | **MUET student emails only.** An account's email must be a roll number at `students.muet.edu.pk`, for example `23sw016@students.muet.edu.pk`: a 2-digit batch year, a 2–4 letter department code, and a 1–3 digit serial number. Pattern (case-insensitive): `^[0-9]{2}[a-z]{2,4}[0-9]{1,3}@students\.muet\.edu\.pk$`. Addresses at plain `muet.edu.pk` and other subdomains such as `fake.students.muet.edu.pk` do not match. A "before user created" auth hook enforces it at sign-up, a trigger stops an account changing to another email (9.10, 9.11), and the register form checks it too. The pattern lives in `src/lib/constants.ts` and `private.student_email_pattern()`, and a test fails if they differ. |
 | D-15 | **Auth emails through Gmail SMTP for the pilot.** Sign-up and password-reset emails go through custom SMTP with a dedicated Gmail account: `smtp.gmail.com`, port 587, an app password, about 500 emails a day. It is configured in the Supabase dashboard, and the credentials stay there (10.4). Before a wider launch, move to a transactional email provider with our own domain (P1). See section 17. |
+| D-16 | **Campus locations.** The list is seeded by the `seed_campus_locations` migration, in this order: the library, STC, cafeteria, sports grounds, gym, university bus point, main gate, mosque, admin block, MUISTD, the 18 departments (A–Z), the 9 hostels, and `other` last. Keys are stable lowercase (`library`, `dept_civil`, `hostel_elsa_kazi`) and are never renamed once reports use them: to retire one, set `is_active = false` and add a new row. `sort_order` goes up in tens. Any change is a new migration (9.2). |
 
 ### 2.1 Open decisions (settle before Milestone 2)
 
 | ID | Question | Recommendation |
 |----|----------|----------------|
-| O-02 | What is the real list of campus locations? | Walk the campus and list departments, library, cafeterias, hostels, gates, transport stops, sports areas, and so on. Use stable keys (`library`, `main_cafeteria`) and friendly labels. |
 | O-04 | Who acts as admin during the pilot? | You, at first. Hand over to a staff member only if the university agrees. Staff can't register (D-14), so their account would have to be added by hand in the dashboard. |
 
 ---
@@ -470,6 +470,10 @@ Validation rules:
   functions.
 - Show a warning not to publish ID numbers, phone numbers, addresses,
   or financial information.
+- The report and its private details are two inserts. If the private
+  details fail after the report is saved, the report is kept and its
+  page tells the owner; they can add the details once editing exists
+  (Milestone 3, slice 3).
 
 ### 8.4 Claim form fields
 
@@ -604,8 +608,9 @@ General rules:
 | `is_active` | `boolean not null default true` | Hide old locations without breaking old reports |
 
 - Everyone can read active rows. Only admins edit it (dashboard or SQL).
-- Seed with the real list once O-02 is decided. Use placeholders until
-  then.
+- Seeded with the real list by the `seed_campus_locations` migration
+  (D-16), so it reaches each hosted project with the other migrations.
+  Add, retire, or relabel locations in a new migration.
 
 ### 9.3 `item_reports`
 
@@ -937,8 +942,9 @@ tell that two rows came from the same account. See the P1 list.
   4. `storage` — the `item-images` bucket and its policies.
   5. `restrict_signup_domain` — the student-email sign-up hook and the
      email-change trigger (D-14).
-- `supabase/seed.sql` holds placeholder locations and fictional
-  reports only.
+  6. `seed_campus_locations` — the real campus locations (D-16).
+- `supabase/seed.sql`, if added, holds fictional reports only. Campus
+  locations come from the migration above.
 - Never edit a migration that has already been merged or applied. Write
   a new one.
 - Never change the schema in the dashboard without a matching
