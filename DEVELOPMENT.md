@@ -118,13 +118,13 @@ affects (especially permissions), and update this table when you do.
 | D-12 | Times are stored as `timestamptz` (UTC) and shown in Pakistan time (`Asia/Karachi`). "Today" checks use `Asia/Karachi`. |
 | D-13 | Anonymous sign-ins stay off. Policies treat every signed-in user as a real, verified account. |
 | D-14 | **MUET student emails only.** An account's email must be a roll number at `students.muet.edu.pk`, for example `23sw016@students.muet.edu.pk`: a 2-digit batch year, a 2–4 letter department code, and a 1–3 digit serial number. Pattern (case-insensitive): `^[0-9]{2}[a-z]{2,4}[0-9]{1,3}@students\.muet\.edu\.pk$`. Addresses at plain `muet.edu.pk` and other subdomains such as `fake.students.muet.edu.pk` do not match. A "before user created" auth hook enforces it at sign-up, a trigger stops an account changing to another email (9.10, 9.11), and the register form checks it too. The pattern lives in `src/lib/constants.ts` and `private.student_email_pattern()`, and a test fails if they differ. |
+| D-15 | **Auth emails through Gmail SMTP for the pilot.** Sign-up and password-reset emails go through custom SMTP with a dedicated Gmail account: `smtp.gmail.com`, port 587, an app password, about 500 emails a day. It is configured in the Supabase dashboard, and the credentials stay there (10.4). Before a wider launch, move to a transactional email provider with our own domain (P1). See section 17. |
 
 ### 2.1 Open decisions (settle before Milestone 2)
 
 | ID | Question | Recommendation |
 |----|----------|----------------|
 | O-02 | What is the real list of campus locations? | Walk the campus and list departments, library, cafeterias, hostels, gates, transport stops, sports areas, and so on. Use stable keys (`library`, `main_cafeteria`) and friendly labels. |
-| O-03 | Which email provider sends sign-up and password-reset emails? | Any transactional email provider with SMTP. Required before the pilot (see section 17). |
 | O-04 | Who acts as admin during the pilot? | You, at first. Hand over to a staff member only if the university agrees. Staff can't register (D-14), so their account would have to be added by hand in the dashboard. |
 
 ---
@@ -256,6 +256,10 @@ Use one repository and one web application.
 
 - [ ] Email notifications for new claims and claim decisions (do this
       first; see the risks in section 20).
+- [ ] Before a wider launch, send auth emails through a transactional
+      email provider (for example Resend or Brevo) from our own domain,
+      with SPF, DKIM and DMARC set up. Gmail SMTP (D-15) is for the
+      pilot only.
 - [ ] Private messages linked to a claim.
 - [ ] Proper pagination and full-text search.
 - [ ] Automatically close reports after a set time (for example 60
@@ -966,7 +970,7 @@ Rules:
   `getUser()`). Never trust `getSession()` in server code.
 - Protect private pages on the server (in the page or layout), not only
   in the proxy.
-- Set up custom SMTP before the pilot (see section 17).
+- Auth emails go through custom SMTP (D-15, section 17).
 - Only MUET student emails can register (D-14). The hook checks only new
   sign-ups, so **the app must not offer a way to change an account's
   email**. The `check_email_change` trigger (9.11) also blocks a change
@@ -1079,6 +1083,10 @@ through the sign-up API (10.1), and an admin can see private details.
 - Keep `.env.local` out of Git. Commit only `.env.example`.
 - Rotate any key that is accidentally committed.
 - Do not paste real secrets into issues, screenshots, or AI prompts.
+- SMTP credentials (the Gmail app password, D-15) live only in the
+  Supabase dashboard. They never go in the repo: not in
+  `supabase/config.toml`, `.env.example`, docs, tests, or commit
+  messages. The app itself never needs them.
 
 A publishable key is safe in the browser only because RLS is correct.
 
@@ -1586,9 +1594,12 @@ Add and document test scripts when you set up the test tools.
 ### Free-tier and email notes (check current limits before launch)
 
 - **Email:** Supabase's built-in email sender is meant for testing and
-  allows only a few emails per hour. Classmates will not reliably get
-  verification or reset emails until you configure **custom SMTP**
-  (decision O-03).
+  allows only a few emails per hour. For the pilot, auth emails go
+  through **custom SMTP** with a dedicated Gmail account (D-15), set in
+  the Supabase dashboard. Supabase's email rate limit was also raised
+  under Authentication → Rate Limits. Gmail's own limit of about 500
+  emails a day still applies. Before a wider launch, move to a
+  transactional email provider (P1).
 - **Pausing:** at the time of writing, free Supabase projects pause
   after about a week with no activity. Restore the project from the
   dashboard before a demo or pilot, or upgrade if it must stay online.
