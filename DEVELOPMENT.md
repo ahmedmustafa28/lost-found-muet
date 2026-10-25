@@ -117,15 +117,15 @@ affects (especially permissions), and update this table when you do.
 | D-11 | The app uses only the Supabase URL and the publishable key. No secret / service-role key in the MVP. |
 | D-12 | Times are stored as `timestamptz` (UTC) and shown in Pakistan time (`Asia/Karachi`). "Today" checks use `Asia/Karachi`. |
 | D-13 | Anonymous sign-ins stay off. Policies treat every signed-in user as a real, verified account. |
+| D-14 | **MUET student emails only.** An account's email must be a roll number at `students.muet.edu.pk`, for example `23sw016@students.muet.edu.pk`: a 2-digit batch year, a 2–4 letter department code, and a 1–3 digit serial number. Pattern (case-insensitive): `^[0-9]{2}[a-z]{2,4}[0-9]{1,3}@students\.muet\.edu\.pk$`. Addresses at plain `muet.edu.pk` and other subdomains such as `fake.students.muet.edu.pk` do not match. A "before user created" auth hook enforces it at sign-up, a trigger stops an account changing to another email (9.10, 9.11), and the register form checks it too. The pattern lives in `src/lib/constants.ts` and `private.student_email_pattern()`, and a test fails if they differ. |
 
 ### 2.1 Open decisions (settle before Milestone 2)
 
 | ID | Question | Recommendation |
 |----|----------|----------------|
-| O-01 | Who can register: anyone with an email address, or only MUET email addresses? | Restrict to university email addresses if students reliably have them. Confirm the exact domain(s) with the university; do not guess. If restricted, enforce it on the server (for example with a Supabase Auth hook or a database check at sign-up), not only in the form. |
 | O-02 | What is the real list of campus locations? | Walk the campus and list departments, library, cafeterias, hostels, gates, transport stops, sports areas, and so on. Use stable keys (`library`, `main_cafeteria`) and friendly labels. |
 | O-03 | Which email provider sends sign-up and password-reset emails? | Any transactional email provider with SMTP. Required before the pilot (see section 17). |
-| O-04 | Who acts as admin during the pilot? | You, at first. Hand over to a staff member only if the university agrees. |
+| O-04 | Who acts as admin during the pilot? | You, at first. Hand over to a staff member only if the university agrees. Staff can't register (D-14), so their account would have to be added by hand in the dashboard. |
 
 ---
 
@@ -139,6 +139,10 @@ affects (especially permissions), and update this table when you do.
 - Register or log in to create a report or submit a claim.
 
 ### Registered user
+
+Only MUET students can register, with the email address made from their
+roll number (D-14). Teachers and staff without a roll-number email can't
+register.
 
 - Create lost or found reports, with optional private details.
 - Edit their own active reports.
@@ -261,6 +265,12 @@ Use one repository and one web application.
       set time.
 - [ ] A limit on how many images one user can upload.
 - [ ] Owner can reopen a closed report.
+- [ ] Require the current password to change it while signed in
+      (today `/reset-password` works for any signed-in session).
+- [ ] Browser-bound email links (PKCE), so a link from someone else's
+      email can't sign you into their account. Not in the MVP because
+      it breaks confirming on a different device; for now the header
+      and `/reset-password` show the signed-in email (10.1).
 - [ ] Flagging of claims, not only listings.
 - [ ] Save a snapshot of the report's content and image when a flag is
       filed, so admins review what was actually flagged (11.1).
@@ -383,7 +393,7 @@ table when they change.
 | `/register` | Public | Create account |
 | `/forgot-password` | Public | Request a password-reset email |
 | `/reset-password` | User arriving from the reset email | Set a new password |
-| `/auth/callback` | Auth flow | Handle the email confirmation / reset link. Use the route name from the current Supabase Next.js guide and update this table if it differs. |
+| `/auth/confirm` | Auth flow | Handle the email confirmation and password-reset links (`verifyOtp` with a token hash), as in the current Supabase Next.js server-side auth guide. Goes to `/dashboard` (`type=email`) or `/reset-password` (`type=recovery`), otherwise `/login?error=link`. Never redirects to a destination taken from the URL. |
 | `/report` | Signed-in | Create a report |
 | `/items/[id]/edit` | Report owner, while active | Edit own report |
 | `/dashboard` | Signed-in | My reports, my claims, claims waiting for my review |
@@ -792,8 +802,9 @@ All functions that check permissions or change status:
 | `admin_review_flag(p_flag_id uuid, p_status text, p_reason text)` | Admin | `open` → `reviewing`, `actioned`, or `dismissed`; `reviewing` → `actioned` or `dismissed`. `actioned` and `dismissed` are final. Writes audit log. |
 
 Policy helpers, in the `private` schema (not exposed by the API). Same
-rules as above, but only `authenticated` has `usage` on the schema and
-`execute` on them. They are security definer so the `item_reports` and
+rules as above, but only `authenticated` has `execute` on them (and,
+with `supabase_auth_admin`, `usage` on the schema; see the auth hook
+below). They are security definer so the `item_reports` and
 `claims` policies can look at each other's table without calling each
 other's policies in a loop. Each answers a question about the caller
 only.
@@ -814,6 +825,16 @@ above. Nobody but the table owner can execute them.
 | `private.require_admin()` | Raises `NOT_SIGNED_IN` or `NOT_ALLOWED` unless the caller is an admin |
 | `private.clean_admin_reason(p_reason)` | Returns the trimmed reason, or raises `INVALID_INPUT` |
 | `private.trim_text(p_text)` | Trims the same characters as JavaScript's `trim()` (which Zod's `.trim()` uses): spaces, tabs, newlines, and Unicode spaces. Used by the functions and by the length check constraints, so `authenticated` can execute it. |
+
+Auth hook and student email check (D-14). Supabase Auth runs these as
+its own role, `supabase_auth_admin`; nobody else can execute them.
+
+| Function | Who can call | What it does |
+|----------|--------------|--------------|
+| `public.restrict_signup_domain(event jsonb)` returns `jsonb` | `supabase_auth_admin` only (the "before user created" hook) | Returns `{}` (allow) only if `event.user.email` matches the student pattern. Anything else, including a missing email, gets `{"error": {"http_code": 403, "message": "Use your MUET student email (your roll number, for example 23sw016@students.muet.edu.pk)."}}`. Not security definer. |
+| `private.student_email_pattern()` returns `text` | `supabase_auth_admin`, and the trigger below | The pattern from D-14. Must equal `STUDENT_EMAIL_PATTERN` in `src/lib/constants.ts` (checked by `tests/db/signupEmail.mjs`). Callers match it case-insensitively. |
+
+The hook does nothing until it is turned on (10.1).
 
 Error codes:
 
@@ -836,6 +857,7 @@ Error codes:
 | `handle_new_user` | `auth.users` (after insert) | Create the `profiles` row from `full_name` in the sign-up metadata, trimmed; `MUET user` if it is missing or not 2–80 characters |
 | `set_updated_at` | `profiles`, `item_reports`, `item_private_details`, `claims` (before update) | Keep `updated_at` correct |
 | `validate_item_report` | `item_reports` (before insert/update) | Check `event_date` against today in `Asia/Karachi` (not after today, not more than 365 days ago); check `image_path` is `<owner user_id>/<uuid>.<jpg\|png\|webp>`; reject an inactive `location_key` |
+| `check_email_change` | `auth.users` (before update, only when `email` or `email_change` changes) | Raise `INVALID_INPUT` if either is changed to a non-empty value that doesn't match the student pattern (D-14). Supabase Auth's API lets a signed-in user request a new email even though the app doesn't offer it; this stops that. `auth.users` is updated on every sign-in and token refresh, so the trigger skips updates that leave both columns alone, and an account whose current email doesn't match can still sign in. |
 
 The trigger functions live in `private` (same names as the triggers).
 `validate_item_report` checks each field on insert, and on update only
@@ -909,6 +931,8 @@ tell that two rows came from the same account. See the P1 list.
   2. `rls_policies` — policies and column grants.
   3. `functions` — helper, claim, report, and admin functions; triggers.
   4. `storage` — the `item-images` bucket and its policies.
+  5. `restrict_signup_domain` — the student-email sign-up hook and the
+     email-change trigger (D-14).
 - `supabase/seed.sql` holds placeholder locations and fictional
   reports only.
 - Never edit a migration that has already been merged or applied. Write
@@ -942,9 +966,78 @@ Rules:
   `getUser()`). Never trust `getSession()` in server code.
 - Protect private pages on the server (in the page or layout), not only
   in the proxy.
-- Configure Site URL and redirect URLs in Supabase Auth for local,
-  staging, and production addresses.
 - Set up custom SMTP before the pilot (see section 17).
+- Only MUET student emails can register (D-14). The hook checks only new
+  sign-ups, so **the app must not offer a way to change an account's
+  email**. The `check_email_change` trigger (9.11) also blocks a change
+  to a non-student email made through the Auth API directly.
+- Never show Supabase's own error messages. Known error codes map to
+  `AUTH_ERROR_MESSAGES` in `src/lib/constants.ts`; anything else gets the
+  generic message.
+- `/forgot-password` shows the same message whatever happens, so it
+  never reveals whether an email is registered. Sign-up doesn't reveal
+  it either: Supabase replies to an already-registered email as if it
+  worked.
+- Nothing in the app links to `/reset-password`; only the reset email
+  does. It works for anyone signed in, without the current password
+  (see the P1 list).
+- An email link signs in the account it was sent to, in whatever
+  browser opens it. Someone could send another person a link from their
+  own account, and that person would be signed in as them without
+  noticing. So the header always shows the signed-in email, and
+  `/reset-password` says "You are setting a new password for <email>".
+  It shows the email, not the name, because anyone can type any name
+  but a roll-number email belongs to one student. A browser-bound flow
+  (PKCE) would stop this, but it breaks confirming on a different
+  device, such as registering on a laptop and opening the email on a
+  phone (see the P1 list).
+- **Accepted risk: account discovery through the sign-up API.** Anyone
+  can call Supabase Auth's sign-up endpoint directly with the
+  publishable key. Supabase answers an email that already has an
+  account as if the sign-up worked, but the hook rejects a new
+  non-student email with 403. So the API can reveal which non-student
+  emails have accounts, which are the staff and admin accounts added by
+  hand (O-04). It reveals only that an account exists, and the app's
+  own pages don't reveal it. Because these emails can be discovered,
+  admin accounts must use strong passwords (10.3).
+
+Email links. The templates in `supabase/templates/` link to
+`{{ .SiteURL }}/auth/confirm` with a token hash: `type=email` to confirm
+an account (then `/dashboard`), `type=recovery` to reset a password
+(then `/reset-password`). The route chooses the destination from `type`
+alone and never reads one from the URL, so a crafted link can't send
+people to another site; any other `type` goes to `/login?error=link`.
+Because they use `{{ .SiteURL }}`, each
+Supabase project can link to only one site. Local development and the
+live site therefore need separate Supabase projects (section 17), each
+with its own Site URL.
+
+Dashboard steps for each hosted Supabase project (the local stack reads
+the same settings from `supabase/config.toml`):
+
+1. **Hook:** Authentication → Hooks → add a "Before User Created" hook,
+   type Postgres, function `public.restrict_signup_domain`. Until this
+   is on, only the register form checks the email. The form rejects
+   non-student emails itself, so testing through it never reaches the
+   hook. Instead, with that project's URL and publishable key in the env
+   file, run
+   `node --env-file=.env.local scripts/check-signup-hook.mjs <email>`
+   once with a non-student email (it must print `REJECTED (403)`) and
+   once with a student email that has no account (it must print
+   `ACCEPTED`; delete that user afterwards). Also check whether the hook
+   blocks users you add by hand in the dashboard.
+2. **Email templates:** Authentication → Emails → Templates. Paste
+   `supabase/templates/confirmation.html` into "Confirm signup" and
+   `supabase/templates/recovery.html` into "Reset password", with the
+   subjects from `config.toml`. Without this, the default emails link
+   to a route the app doesn't have.
+3. **Password length:** Authentication → Sign In / Providers → Email:
+   minimum password length 8, matching `PASSWORD_MIN_LENGTH` in
+   `src/lib/constants.ts`. Keep "Confirm email" on.
+4. **URL configuration:** Authentication → URL Configuration. Set the
+   Site URL to that project's site (`http://localhost:3000` for the
+   development project, the live address for production), and add the
+   same address to the redirect URLs.
 
 ### 10.2 Authorization
 
@@ -970,6 +1063,10 @@ Decided in D-06: an `admins` table with no API access, checked by
 `is_admin()`. There is no role column anywhere a user can edit. The UI
 can call `is_admin()` to decide whether to show the admin link, but
 security comes from the database checks.
+
+Admin accounts must use strong, unique passwords (for example one
+generated by a password manager). Their emails can be discovered
+through the sign-up API (10.1), and an admin can see private details.
 
 ### 10.4 Secret handling
 
@@ -1093,7 +1190,7 @@ lost-found-muet/
 │   │   ├── register/page.tsx
 │   │   ├── forgot-password/page.tsx
 │   │   ├── reset-password/page.tsx
-│   │   ├── auth/callback/route.ts
+│   │   ├── auth/confirm/route.ts
 │   │   ├── lost/page.tsx
 │   │   ├── found/page.tsx
 │   │   ├── items/[id]/page.tsx
@@ -1123,6 +1220,8 @@ lost-found-muet/
 │   ├── types/
 │   │   └── database.ts        # generated by Supabase CLI
 │   └── proxy.ts               # session refresh (middleware.ts on Next.js < 16)
+├── scripts/
+│   └── check-signup-hook.mjs  # checks the sign-up hook on a project (10.1)
 ├── supabase/
 │   ├── config.toml
 │   ├── migrations/
@@ -1534,6 +1633,9 @@ The MVP is ready for a small pilot only when all of these are true:
 
 - [ ] A user can register, verify, log in, log out, and reset their
       password.
+- [ ] On each hosted Supabase project, `scripts/check-signup-hook.mjs`
+      shows the sign-up hook rejecting a non-student email (403) and
+      accepting a student email with no account (10.1, step 1).
 - [ ] A signed-in user can create lost and found reports, with optional
       private details and photo.
 - [ ] Invalid form data is rejected with a clear error.

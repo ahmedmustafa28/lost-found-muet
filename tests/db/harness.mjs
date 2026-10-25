@@ -45,15 +45,25 @@ export async function setup() {
   const ver = await db.query("select version()");
   console.log(ver.rows[0].version.split(",")[0]);
 
-  // Stand-in for Supabase: auth.users, auth.uid(), the API roles, and the
+  // Stand-in for Supabase: auth.users, auth.uid(), the API roles, Supabase
+  // Auth's own role (which writes auth.users and runs auth hooks), and the
   // default privileges that open new public tables and functions to them.
   await db.exec(`
     create schema auth;
-    create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb);
+    create table auth.users (
+      id uuid primary key,
+      email text,
+      email_change text default '',
+      last_sign_in_at timestamptz,
+      raw_user_meta_data jsonb
+    );
     create function auth.uid() returns uuid language sql stable
       as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     create role anon nologin;
     create role authenticated nologin;
+    create role supabase_auth_admin nologin;
+    grant usage on schema auth to supabase_auth_admin;
+    grant all on auth.users to supabase_auth_admin;
     grant usage on schema public, auth to anon, authenticated;
     grant execute on function auth.uid() to anon, authenticated;
     alter default privileges in schema public grant all on tables to anon, authenticated;
