@@ -29,7 +29,7 @@ export function ReportClaimsList({
               >
                 <span className="font-medium">
                   {CLAIM_TYPE_LABELS[claim.claimType]} · {CLAIM_STATUS_LABELS[claim.status]}:{" "}
-                  {claimStatusText(claim.status, "owner", reportStatus).short}
+                  {claimStatusText(claim.status, "owner", reportStatus, claim.claimType).short}
                 </span>
                 <span className="text-sm text-neutral-700 dark:text-neutral-300">
                   Sent {formatTimestampDate(claim.createdAt)}

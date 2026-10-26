@@ -1,7 +1,9 @@
 import {
   CLAIM_STATUS_TEXT,
+  CLAIMANT_REOPENED_FOUND_MATCH,
   type ClaimStatus,
   type ClaimStatusText,
+  type ClaimType,
   type ClaimViewer,
   type ReportStatus,
 } from "@/lib/constants";
@@ -12,6 +14,7 @@ export function claimStatusText(
   status: ClaimStatus,
   viewer: ClaimViewer,
   reportStatus: ReportStatus | null,
+  claimType: ClaimType,
 ): ClaimStatusText {
   const texts = CLAIM_STATUS_TEXT[viewer];
   // resolve_report() keeps the approved claim approved; close_report() and
@@ -28,7 +31,9 @@ export function claimStatusText(
       // Only admin_restore_report() makes a report with closed claims
       // active again; restoring doesn't reopen them (DEVELOPMENT.md 8.6).
       case "active":
-        return texts.closedReopened;
+        return viewer === "claimant" && claimType === "found_match"
+          ? CLAIMANT_REOPENED_FOUND_MATCH
+          : texts.closedReopened;
     }
   }
   return texts[status];

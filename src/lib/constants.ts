@@ -142,6 +142,13 @@ const CLAIMANT_CLOSED: ClaimStatusText = {
   short: "Report ended",
 };
 
+// The claimant's closedReopened text above is for "This is mine"; on an
+// "I found this" claim the claimant is the finder, not the owner.
+export const CLAIMANT_REOPENED_FOUND_MATCH: ClaimStatusText = {
+  long: "This claim was closed when the report was hidden. The report is open again, so you can send a new claim if you still have it.",
+  short: "Closed: report reopened",
+};
+
 export const CLAIM_STATUS_TEXT: Record<ClaimViewer, Record<ClaimStatusCase, ClaimStatusText>> = {
   claimant: {
     pending: {

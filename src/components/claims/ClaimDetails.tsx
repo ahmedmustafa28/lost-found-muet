@@ -17,7 +17,7 @@ export function ClaimDetails({ claim }: { claim: ClaimView }) {
   const { report } = claim;
   const viewer = claim.isClaimant ? "claimant" : claim.isReportOwner ? "owner" : null;
   const statusDescription = viewer
-    ? claimStatusText(claim.status, viewer, report?.status ?? null).long
+    ? claimStatusText(claim.status, viewer, report?.status ?? null, claim.claimType).long
     : null;
 
   return (

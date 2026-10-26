@@ -21,7 +21,7 @@ export function ClaimsToReviewList({ claims }: { claims: ClaimToReview[] }) {
             <span className="break-words font-medium underline-offset-4">{claim.reportTitle}</span>
             <span className="text-sm text-neutral-700 dark:text-neutral-300">
               {CLAIM_TYPE_LABELS[claim.claimType]} · {CLAIM_STATUS_LABELS.pending}:{" "}
-              {claimStatusText("pending", "owner", "active").short} · Sent{" "}
+              {claimStatusText("pending", "owner", "active", claim.claimType).short} · Sent{" "}
               {formatTimestampDate(claim.createdAt)}
             </span>
           </Link>

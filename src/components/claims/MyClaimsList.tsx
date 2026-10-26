@@ -23,7 +23,7 @@ export function MyClaimsList({ claims }: { claims: MyClaim[] }) {
             </span>
             <span className="text-sm text-neutral-700 dark:text-neutral-300">
               {CLAIM_TYPE_LABELS[claim.claimType]} · {CLAIM_STATUS_LABELS[claim.status]}:{" "}
-              {claimStatusText(claim.status, "claimant", claim.reportStatus).short} · Sent{" "}
+              {claimStatusText(claim.status, "claimant", claim.reportStatus, claim.claimType).short} · Sent{" "}
               {formatTimestampDate(claim.createdAt)}
             </span>
           </Link>
