@@ -720,6 +720,11 @@ Access:
 - Readable by the claimant, the report owner, and admins.
 - **No direct insert, update, or delete** for users. All writes go
   through the claim functions in section 9.10.
+- Accepted: `reject_claim()` keeps `handover_note`, so a claimant whose
+  approved claim is later rejected can still read, through the API, the
+  handover note that was written for them. The app shows it only while
+  the claim is approved, and contact details stay hidden
+  (`get_claim_contact()` needs an approved claim).
 
 ### 9.6 `abuse_reports`
 
@@ -1493,6 +1498,10 @@ forbidden transition fails.
 - `admin_hide_report`, `admin_restore_report`, `admin_review_flag`,
   audit log.
 - Privacy, guidelines, and help pages.
+- Approve and reject buttons for admins on claim pages. The database
+  already allows admins to approve and reject claims on anyone's report
+  (not their own claim; 8.7, 9.10); until then, admins see claim pages
+  read-only.
 - Mobile and accessibility checks.
 - Fix errors and edge cases.
 

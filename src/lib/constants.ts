@@ -127,7 +127,9 @@ export type ClaimStatusCase =
   | "approvedReturned"
   | "closedReturned"
   | "closedReportClosed"
-  | "closedHidden";
+  | "closedHidden"
+  // An admin hid the report (closing its claims), then restored it.
+  | "closedReopened";
 export type ClaimStatusText = { long: string; short: string };
 
 const RETURNED_WITH_CLAIM: ClaimStatusText = {
@@ -163,6 +165,10 @@ export const CLAIM_STATUS_TEXT: Record<ClaimViewer, Record<ClaimStatusCase, Clai
     closedReturned: CLAIMANT_CLOSED,
     closedReportClosed: CLAIMANT_CLOSED,
     closedHidden: CLAIMANT_CLOSED,
+    closedReopened: {
+      long: "This claim was closed when the report was hidden. The report is open again, so you can send a new claim if it's still yours.",
+      short: "Closed: report reopened",
+    },
   },
   owner: {
     pending: {
@@ -197,6 +203,10 @@ export const CLAIM_STATUS_TEXT: Record<ClaimViewer, Record<ClaimStatusCase, Clai
     closedHidden: {
       long: "Closed because an admin hid the report. There's nothing more to do.",
       short: "Closed: report hidden",
+    },
+    closedReopened: {
+      long: "This claim was closed when the report was hidden. The report is open again, so new claims can come in.",
+      short: "Closed: report reopened",
     },
   },
 };
@@ -363,8 +373,11 @@ export const PRIVATE_DETAILS_CANNOT_REMOVE =
 export const REPORT_ALREADY_ENDED_MESSAGE =
   "This report is already closed or marked as returned.";
 
-// Asked before resolve_report() (DEVELOPMENT.md 6.5, 8.6).
+// Asked before resolve_report() (DEVELOPMENT.md 6.5, 8.6). "Other" only
+// when a claim is approved, as that one stays open.
 export const RESOLVE_REPORT_QUESTION =
+  "Has this item been returned? Any pending claims will be closed.";
+export const RESOLVE_REPORT_QUESTION_WITH_APPROVED =
   "Has this item been returned? Any other pending claims will be closed.";
 export const RESOLVE_REPORT_KEEPS_APPROVED =
   "The approved claim stays as the record of the handover.";

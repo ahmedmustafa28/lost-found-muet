@@ -25,6 +25,10 @@ export function claimStatusText(
         return texts.closedReportClosed;
       case "hidden":
         return texts.closedHidden;
+      // Only admin_restore_report() makes a report with closed claims
+      // active again; restoring doesn't reopen them (DEVELOPMENT.md 8.6).
+      case "active":
+        return texts.closedReopened;
     }
   }
   return texts[status];

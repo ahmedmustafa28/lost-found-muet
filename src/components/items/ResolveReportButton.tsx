@@ -3,7 +3,11 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { FormMessage } from "@/components/forms/FormMessage";
 import { SubmitButton } from "@/components/forms/SubmitButton";
-import { RESOLVE_REPORT_KEEPS_APPROVED, RESOLVE_REPORT_QUESTION } from "@/lib/constants";
+import {
+  RESOLVE_REPORT_KEEPS_APPROVED,
+  RESOLVE_REPORT_QUESTION,
+  RESOLVE_REPORT_QUESTION_WITH_APPROVED,
+} from "@/lib/constants";
 import { resolveReport } from "@/lib/reports/actions";
 
 const secondaryButton =
@@ -43,8 +47,13 @@ export function ResolveReportButton({ reportId, hasApprovedClaim }: ResolveRepor
     >
       <input type="hidden" name="id" value={reportId} />
       <p ref={questionRef} tabIndex={-1} className="font-medium focus:outline-none">
-        {RESOLVE_REPORT_QUESTION}
-        {hasApprovedClaim && <> {RESOLVE_REPORT_KEEPS_APPROVED}</>}
+        {hasApprovedClaim ? (
+          <>
+            {RESOLVE_REPORT_QUESTION_WITH_APPROVED} {RESOLVE_REPORT_KEEPS_APPROVED}
+          </>
+        ) : (
+          RESOLVE_REPORT_QUESTION
+        )}
       </p>
       {state?.ok === false && state.error && (
         <FormMessage kind="error">{state.error}</FormMessage>
