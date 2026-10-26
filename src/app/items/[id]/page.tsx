@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ClaimPanel } from "@/components/claims/ClaimPanel";
+import { ReportClaimsList } from "@/components/claims/ReportClaimsList";
 import { FormMessage } from "@/components/forms/FormMessage";
 import { CloseReportButton } from "@/components/items/CloseReportButton";
 import { ItemDetails } from "@/components/items/ItemDetails";
 import { getSignedInUserId } from "@/lib/auth/getSignedInUserId";
-import { getOpenClaimId } from "@/lib/claims/queries";
+import { getOpenClaimId, getReportClaims } from "@/lib/claims/queries";
 import { PRIVATE_DETAILS_NOT_SAVED_MESSAGE } from "@/lib/constants";
 import { getReport } from "@/lib/reports/queries";
 import { createClient } from "@/lib/supabase/server";
@@ -30,6 +31,8 @@ export default async function ItemPage({ params, searchParams }: PageProps<"/ite
   // Owners can't claim their own report (OWN_ITEM), so they get no claim part.
   const userId = report.isOwner ? null : await getSignedInUserId(await createClient());
   const openClaimId = userId ? await getOpenClaimId(report.id, userId) : null;
+  // The owner sees every claim on their report, whatever its status.
+  const claims = report.isOwner ? await getReportClaims(report.id) : [];
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-10">
@@ -48,6 +51,7 @@ export default async function ItemPage({ params, searchParams }: PageProps<"/ite
           <CloseReportButton reportId={report.id} />
         </section>
       )}
+      {report.isOwner && <ReportClaimsList claims={claims} />}
       {!report.isOwner && (
         <ClaimPanel
           reportId={report.id}

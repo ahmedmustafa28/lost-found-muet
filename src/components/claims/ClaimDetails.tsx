@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   CLAIM_ERROR_MESSAGES,
   CLAIM_STATUS_DESCRIPTIONS,
+  CLAIM_STATUS_DESCRIPTIONS_FOR_OWNER,
   CLAIM_STATUS_LABELS,
   CLAIM_TYPE_LABELS,
   REPORT_STATUS_LABELS,
@@ -10,10 +11,16 @@ import {
 import type { ClaimView } from "@/lib/claims/queries";
 import { formatTimestampDate } from "@/lib/dates";
 
-// Never shows who made the claim or who posted the report. The status
-// explanations are worded for the claimant, so others see only the status.
+// Never shows who made the claim or who posted the report; contact details
+// are in HandoverContact. The status explanations are worded for the
+// claimant or the owner, so admins see only the status.
 export function ClaimDetails({ claim }: { claim: ClaimView }) {
   const { report } = claim;
+  const statusDescription = claim.isClaimant
+    ? CLAIM_STATUS_DESCRIPTIONS[claim.status]
+    : claim.isReportOwner
+      ? CLAIM_STATUS_DESCRIPTIONS_FOR_OWNER[claim.status]
+      : null;
 
   return (
     <article className="flex flex-col gap-6">
@@ -27,7 +34,7 @@ export function ClaimDetails({ claim }: { claim: ClaimView }) {
       </header>
 
       <section className="flex flex-col gap-2 rounded-md border border-neutral-300 p-4 dark:border-neutral-700">
-        <h2 className="text-lg font-semibold">Report</h2>
+        <h2 className="text-lg font-semibold">{claim.isReportOwner ? "Your report" : "Report"}</h2>
         {report ? (
           <p className="flex flex-col gap-1">
             <Link href={`/items/${report.id}`} className="break-words underline">
@@ -47,16 +54,33 @@ export function ClaimDetails({ claim }: { claim: ClaimView }) {
         <dt className="font-medium">Status</dt>
         <dd>
           <strong>{CLAIM_STATUS_LABELS[claim.status]}</strong>
-          {claim.isClaimant && <>. {CLAIM_STATUS_DESCRIPTIONS[claim.status]}</>}
+          {statusDescription && <>. {statusDescription}</>}
         </dd>
         <dt className="font-medium">Sent</dt>
         <dd>{formatTimestampDate(claim.createdAt)}</dd>
       </dl>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-lg font-semibold">Message</h2>
-        <p className="whitespace-pre-line break-words">{claim.message}</p>
-      </section>
+      {/* The owner compares the message with their private details
+          (DEVELOPMENT.md 6.3, 6.4), so they sit side by side. */}
+      <div className={claim.isReportOwner ? "grid grid-cols-1 gap-4 md:grid-cols-2" : undefined}>
+        <section className="flex flex-col gap-2">
+          <h2 className="text-lg font-semibold">
+            {claim.isReportOwner ? "Claimant's message" : "Message"}
+          </h2>
+          <p className="whitespace-pre-line break-words">{claim.message}</p>
+        </section>
+        {claim.isReportOwner && (
+          <section className="flex flex-col gap-2 rounded-md border border-neutral-300 p-4 dark:border-neutral-700">
+            <h2 className="text-lg font-semibold">Your private details</h2>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              Only you and site admins can see this. The claimant can&apos;t.
+            </p>
+            <p className="whitespace-pre-line break-words">
+              {claim.privateDetails ?? "You didn't add any private details."}
+            </p>
+          </section>
+        )}
+      </div>
     </article>
   );
 }

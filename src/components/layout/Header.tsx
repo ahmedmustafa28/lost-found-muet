@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { logout } from "@/lib/auth/actions";
 import { getSignedInUser } from "@/lib/auth/getSignedInUserId";
+import { countClaimsToReview } from "@/lib/claims/queries";
 import { createClient } from "@/lib/supabase/server";
 
 const linkClass =
@@ -9,6 +10,9 @@ const linkClass =
 export async function Header() {
   const supabase = await createClient();
   const user = await getSignedInUser(supabase);
+  // Refreshed on full page loads and after form actions, not on every link
+  // click: the root layout stays in place during client-side navigation.
+  const reviewCount = user ? await countClaimsToReview(user.id) : null;
 
   return (
     <header className="border-b border-neutral-300 dark:border-neutral-700">
@@ -47,6 +51,16 @@ export async function Header() {
               <li>
                 <Link href="/dashboard" className={linkClass}>
                   Dashboard
+                  {reviewCount ? (
+                    <>
+                      {" "}
+                      <span aria-hidden="true">({reviewCount})</span>
+                      <span className="sr-only">
+                        , {reviewCount} {reviewCount === 1 ? "claim" : "claims"} waiting for your
+                        review
+                      </span>
+                    </>
+                  ) : null}
                 </Link>
               </li>
               <li>

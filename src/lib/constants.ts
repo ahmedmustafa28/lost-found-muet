@@ -106,14 +106,33 @@ export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
 };
 
 // Shown next to the status on the claim page, so the status is explained in
-// words (DEVELOPMENT.md 8.7).
+// words (DEVELOPMENT.md 8.7). One set for the claimant, one for the report
+// owner.
 export const CLAIM_STATUS_DESCRIPTIONS: Record<ClaimStatus, string> = {
   pending: "Waiting for the person who posted the report to review it.",
   approved: "Accepted. You can now arrange the handover.",
-  rejected: "The person who posted the report declined this claim.",
+  rejected: "This claim was declined.",
   cancelled: "You withdrew this claim.",
   closed: "Closed because the report ended.",
 };
+
+export const CLAIM_STATUS_DESCRIPTIONS_FOR_OWNER: Record<ClaimStatus, string> = {
+  pending: "Waiting for your review.",
+  approved: "You approved this claim. You can now arrange the handover.",
+  rejected: "This claim was declined.",
+  cancelled: "The claimant withdrew this claim.",
+  closed: "Closed because the report ended.",
+};
+
+export const HANDOVER_NOTE_HINT =
+  "Where and when to meet, for example \"Library entrance, Monday 2 pm\". Choose a public place on campus.";
+
+// Shown next to the contact details of an approved claim (DEVELOPMENT.md 6.5).
+export const HANDOVER_SAFETY_TIPS = [
+  "Meet in a public place on campus, during the day if you can.",
+  "Never pay anyone to get an item back.",
+  "Use these details only to arrange the handover.",
+] as const;
 
 // Claim form guidance (DEVELOPMENT.md 6.3, 6.4), by claim type.
 export const CLAIM_MESSAGE_HINTS: Record<ClaimType, string> = {
@@ -134,6 +153,11 @@ export const CLAIM_ERROR_MESSAGES = {
   cannotCancelEnded: "This claim can't be cancelled because the report has ended.",
   alreadyEnded: "This claim is already closed.",
   reportUnavailable: "This report is no longer available.",
+  alreadyApproved:
+    "You've already approved another claim on this report. Reject it first if the handover didn't work out.",
+  noLongerPending: "This claim is no longer pending. Refresh the page.",
+  cannotReviewEnded: "This report is no longer active, so its claims can't be reviewed.",
+  contactNotLoaded: "Contact details couldn't be loaded. Refresh the page.",
 } as const;
 
 // ---------- Abuse reports ----------

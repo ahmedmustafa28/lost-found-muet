@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ClaimsToReviewList } from "@/components/claims/ClaimsToReviewList";
 import { MyClaimsList } from "@/components/claims/MyClaimsList";
 import { MyReportsList } from "@/components/items/MyReportsList";
 import { getSignedInUserId } from "@/lib/auth/getSignedInUserId";
-import { getMyClaims } from "@/lib/claims/queries";
+import { getClaimsToReview, getMyClaims } from "@/lib/claims/queries";
 import { getMyReports } from "@/lib/reports/queries";
 import { createClient } from "@/lib/supabase/server";
 
@@ -16,10 +17,11 @@ export default async function DashboardPage() {
   if (!userId) redirect("/login");
 
   // RLS lets a user read only their own profile.
-  const [{ data: profile, error }, reports, claims] = await Promise.all([
+  const [{ data: profile, error }, reports, claims, claimsToReview] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
     getMyReports(userId),
     getMyClaims(userId),
+    getClaimsToReview(userId),
   ]);
   // error.tsx shows a friendly message; the database error is not shown.
   if (error || typeof profile?.full_name !== "string") {
@@ -34,6 +36,12 @@ export default async function DashboardPage() {
           Signed in as <strong>{profile.full_name}</strong>
         </p>
       </div>
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-semibold">
+          Waiting for my review ({claimsToReview.length})
+        </h2>
+        <ClaimsToReviewList claims={claimsToReview} />
+      </section>
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-semibold">My reports</h2>

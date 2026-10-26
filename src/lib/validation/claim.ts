@@ -17,3 +17,17 @@ export const claimSchema = z.object({
       `Use ${TEXT_LIMITS.claimMessage.max} characters or fewer.`,
     ),
 });
+
+// approve_claim() checks the same trimmed length (DEVELOPMENT.md 8.4).
+export const handoverSchema = z.object({
+  handoverNote: text()
+    .trim()
+    .min(
+      TEXT_LIMITS.handoverNote.min,
+      `Write at least ${TEXT_LIMITS.handoverNote.min} characters.`,
+    )
+    .max(
+      TEXT_LIMITS.handoverNote.max,
+      `Use ${TEXT_LIMITS.handoverNote.max} characters or fewer.`,
+    ),
+});
