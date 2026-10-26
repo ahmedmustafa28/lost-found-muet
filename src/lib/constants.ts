@@ -105,6 +105,37 @@ export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
   closed: "Closed",
 };
 
+// Shown next to the status on the claim page, so the status is explained in
+// words (DEVELOPMENT.md 8.7).
+export const CLAIM_STATUS_DESCRIPTIONS: Record<ClaimStatus, string> = {
+  pending: "Waiting for the person who posted the report to review it.",
+  approved: "Accepted. You can now arrange the handover.",
+  rejected: "The person who posted the report declined this claim.",
+  cancelled: "You withdrew this claim.",
+  closed: "Closed because the report ended.",
+};
+
+// Claim form guidance (DEVELOPMENT.md 6.3, 6.4), by claim type.
+export const CLAIM_MESSAGE_HINTS: Record<ClaimType, string> = {
+  ownership:
+    "Describe something about the item that isn't in the public description or photo, so the finder can tell it's yours.",
+  found_match:
+    "Say where and when you found it, and what it looks like.",
+};
+
+// Shown before submitting or approving a claim (DEVELOPMENT.md D-03, 8.4).
+export const CLAIM_CONTACT_NOTICE =
+  "If this claim is approved, you and the other person will see each other's name and email so you can arrange the handover.";
+
+// Clearer wording than ERROR_MESSAGES for these codes on the claim forms.
+export const CLAIM_ERROR_MESSAGES = {
+  duplicate: "You've already sent a claim on this report.",
+  notTakingClaims: "This report is no longer taking claims.",
+  cannotCancelEnded: "This claim can't be cancelled because the report has ended.",
+  alreadyEnded: "This claim is already closed.",
+  reportUnavailable: "This report is no longer available.",
+} as const;
+
 // ---------- Abuse reports ----------
 
 export const ABUSE_REASONS = [

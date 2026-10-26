@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { MyClaimsList } from "@/components/claims/MyClaimsList";
 import { MyReportsList } from "@/components/items/MyReportsList";
 import { getSignedInUserId } from "@/lib/auth/getSignedInUserId";
+import { getMyClaims } from "@/lib/claims/queries";
 import { getMyReports } from "@/lib/reports/queries";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,9 +16,10 @@ export default async function DashboardPage() {
   if (!userId) redirect("/login");
 
   // RLS lets a user read only their own profile.
-  const [{ data: profile, error }, reports] = await Promise.all([
+  const [{ data: profile, error }, reports, claims] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
     getMyReports(userId),
+    getMyClaims(userId),
   ]);
   // error.tsx shows a friendly message; the database error is not shown.
   if (error || typeof profile?.full_name !== "string") {
@@ -39,6 +42,10 @@ export default async function DashboardPage() {
           </Link>
         </div>
         <MyReportsList reports={reports} />
+      </section>
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-semibold">My claims</h2>
+        <MyClaimsList claims={claims} />
       </section>
     </main>
   );

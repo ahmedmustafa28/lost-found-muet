@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ClaimPanel } from "@/components/claims/ClaimPanel";
 import { FormMessage } from "@/components/forms/FormMessage";
 import { CloseReportButton } from "@/components/items/CloseReportButton";
 import { ItemDetails } from "@/components/items/ItemDetails";
+import { getSignedInUserId } from "@/lib/auth/getSignedInUserId";
+import { getOpenClaimId } from "@/lib/claims/queries";
 import { PRIVATE_DETAILS_NOT_SAVED_MESSAGE } from "@/lib/constants";
 import { getReport } from "@/lib/reports/queries";
+import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Item" };
 
@@ -23,6 +27,10 @@ export default async function ItemPage({ params, searchParams }: PageProps<"/ite
   // Hiding these is for convenience; the database enforces the same rule.
   const canChange = report.isOwner && report.status === "active";
 
+  // Owners can't claim their own report (OWN_ITEM), so they get no claim part.
+  const userId = report.isOwner ? null : await getSignedInUserId(await createClient());
+  const openClaimId = userId ? await getOpenClaimId(report.id, userId) : null;
+
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-10">
       {privateDetailsNotSaved && (
@@ -39,6 +47,15 @@ export default async function ItemPage({ params, searchParams }: PageProps<"/ite
           </Link>
           <CloseReportButton reportId={report.id} />
         </section>
+      )}
+      {!report.isOwner && (
+        <ClaimPanel
+          reportId={report.id}
+          reportType={report.reportType}
+          reportIsActive={report.status === "active"}
+          signedIn={userId !== null}
+          openClaimId={openClaimId}
+        />
       )}
     </main>
   );
