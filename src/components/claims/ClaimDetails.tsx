@@ -1,14 +1,13 @@
 import Link from "next/link";
 import {
   CLAIM_ERROR_MESSAGES,
-  CLAIM_STATUS_DESCRIPTIONS,
-  CLAIM_STATUS_DESCRIPTIONS_FOR_OWNER,
   CLAIM_STATUS_LABELS,
   CLAIM_TYPE_LABELS,
   REPORT_STATUS_LABELS,
   REPORT_TYPE_LABELS,
 } from "@/lib/constants";
 import type { ClaimView } from "@/lib/claims/queries";
+import { claimStatusText } from "@/lib/claims/statusText";
 import { formatTimestampDate } from "@/lib/dates";
 
 // Never shows who made the claim or who posted the report; contact details
@@ -16,11 +15,10 @@ import { formatTimestampDate } from "@/lib/dates";
 // claimant or the owner, so admins see only the status.
 export function ClaimDetails({ claim }: { claim: ClaimView }) {
   const { report } = claim;
-  const statusDescription = claim.isClaimant
-    ? CLAIM_STATUS_DESCRIPTIONS[claim.status]
-    : claim.isReportOwner
-      ? CLAIM_STATUS_DESCRIPTIONS_FOR_OWNER[claim.status]
-      : null;
+  const viewer = claim.isClaimant ? "claimant" : claim.isReportOwner ? "owner" : null;
+  const statusDescription = viewer
+    ? claimStatusText(claim.status, viewer, report?.status ?? null).long
+    : null;
 
   return (
     <article className="flex flex-col gap-6">

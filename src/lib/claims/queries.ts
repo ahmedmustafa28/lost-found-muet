@@ -158,8 +158,9 @@ export type MyClaim = {
   claimType: ClaimType;
   status: ClaimStatus;
   createdAt: string;
-  // Null when the viewer can no longer see the report.
+  // Both null when the viewer can no longer see the report.
   reportTitle: string | null;
+  reportStatus: ReportStatus | null;
 };
 
 // RLS also returns claims on the user's own reports, so filter by claimant.
@@ -167,7 +168,7 @@ export async function getMyClaims(userId: string): Promise<MyClaim[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("claims")
-    .select("id, claim_type, status, created_at, item_reports ( title )")
+    .select("id, claim_type, status, created_at, item_reports ( title, status )")
     .eq("claimant_id", userId)
     .order("created_at", { ascending: false });
   if (error) throw new Error("Could not load your claims.");
@@ -177,6 +178,7 @@ export async function getMyClaims(userId: string): Promise<MyClaim[]> {
     status: row.status as ClaimStatus,
     createdAt: row.created_at,
     reportTitle: row.item_reports?.title ?? null,
+    reportStatus: (row.item_reports?.status as ReportStatus | undefined) ?? null,
   }));
 }
 

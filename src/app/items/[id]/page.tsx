@@ -6,9 +6,10 @@ import { ReportClaimsList } from "@/components/claims/ReportClaimsList";
 import { FormMessage } from "@/components/forms/FormMessage";
 import { CloseReportButton } from "@/components/items/CloseReportButton";
 import { ItemDetails } from "@/components/items/ItemDetails";
+import { ResolveReportButton } from "@/components/items/ResolveReportButton";
 import { getSignedInUserId } from "@/lib/auth/getSignedInUserId";
 import { getOpenClaimId, getReportClaims } from "@/lib/claims/queries";
-import { PRIVATE_DETAILS_NOT_SAVED_MESSAGE } from "@/lib/constants";
+import { PRIVATE_DETAILS_NOT_SAVED_MESSAGE, REPORT_STATUS_NOTICES } from "@/lib/constants";
 import { getReport } from "@/lib/reports/queries";
 import { createClient } from "@/lib/supabase/server";
 
@@ -33,11 +34,17 @@ export default async function ItemPage({ params, searchParams }: PageProps<"/ite
   const openClaimId = userId ? await getOpenClaimId(report.id, userId) : null;
   // The owner sees every claim on their report, whatever its status.
   const claims = report.isOwner ? await getReportClaims(report.id) : [];
+  const hasApprovedClaim = claims.some((claim) => claim.status === "approved");
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-10">
       {privateDetailsNotSaved && (
         <FormMessage kind="error">{PRIVATE_DETAILS_NOT_SAVED_MESSAGE}</FormMessage>
+      )}
+      {report.status !== "active" && (
+        <p className="rounded-md border border-neutral-400 px-3 py-2 font-medium">
+          {REPORT_STATUS_NOTICES[report.status]}
+        </p>
       )}
       <ItemDetails report={report} />
       {canChange && (
@@ -48,10 +55,11 @@ export default async function ItemPage({ params, searchParams }: PageProps<"/ite
           >
             Edit
           </Link>
+          <ResolveReportButton reportId={report.id} hasApprovedClaim={hasApprovedClaim} />
           <CloseReportButton reportId={report.id} />
         </section>
       )}
-      {report.isOwner && <ReportClaimsList claims={claims} />}
+      {report.isOwner && <ReportClaimsList claims={claims} reportStatus={report.status} />}
       {!report.isOwner && (
         <ClaimPanel
           reportId={report.id}

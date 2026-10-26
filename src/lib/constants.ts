@@ -42,9 +42,19 @@ export type ReportStatus = (typeof REPORT_STATUSES)[number];
 
 export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
   active: "Active",
-  resolved: "Resolved",
+  // "Resolved" means the item was returned (DEVELOPMENT.md 8.6); the UI
+  // always calls it "Returned".
+  resolved: "Returned",
   closed: "Closed",
   hidden: "Hidden",
+};
+
+// Shown on the item page to anyone who can still see a report that isn't
+// active.
+export const REPORT_STATUS_NOTICES: Record<Exclude<ReportStatus, "active">, string> = {
+  resolved: "This item has been returned.",
+  closed: "This report is closed.",
+  hidden: "This report has been hidden by an admin.",
 };
 
 export const CATEGORIES = [
@@ -105,23 +115,90 @@ export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
   closed: "Closed",
 };
 
-// Shown next to the status on the claim page, so the status is explained in
-// words (DEVELOPMENT.md 8.7). One set for the claimant, one for the report
-// owner.
-export const CLAIM_STATUS_DESCRIPTIONS: Record<ClaimStatus, string> = {
-  pending: "Waiting for the person who posted the report to review it.",
-  approved: "Accepted. You can now arrange the handover.",
-  rejected: "This claim was declined.",
-  cancelled: "You withdrew this claim.",
-  closed: "Closed because the report ended.",
+// What a claim's status means and what happens next, in words
+// (DEVELOPMENT.md 8.7). `long` is for the claim page, `short` for lists.
+// Picked by claimStatusText() in src/lib/claims/statusText.ts: approved and
+// closed claims also depend on the report's status. The claimant of a closed
+// claim can't see the report any more, so their text doesn't say why it
+// ended.
+export type ClaimViewer = "claimant" | "owner";
+export type ClaimStatusCase =
+  | ClaimStatus
+  | "approvedReturned"
+  | "closedReturned"
+  | "closedReportClosed"
+  | "closedHidden";
+export type ClaimStatusText = { long: string; short: string };
+
+const RETURNED_WITH_CLAIM: ClaimStatusText = {
+  long: "The item has been marked as returned. This claim is the record of the handover, and the details below stay available.",
+  short: "Item returned",
 };
 
-export const CLAIM_STATUS_DESCRIPTIONS_FOR_OWNER: Record<ClaimStatus, string> = {
-  pending: "Waiting for your review.",
-  approved: "You approved this claim. You can now arrange the handover.",
-  rejected: "This claim was declined.",
-  cancelled: "The claimant withdrew this claim.",
-  closed: "Closed because the report ended.",
+const CLAIMANT_CLOSED: ClaimStatusText = {
+  long: "Closed because the report ended: the item was returned, or the report was closed or taken down. There's nothing more to do with this claim.",
+  short: "Report ended",
+};
+
+export const CLAIM_STATUS_TEXT: Record<ClaimViewer, Record<ClaimStatusCase, ClaimStatusText>> = {
+  claimant: {
+    pending: {
+      long: "Waiting for the person who posted the report to review it. Check back here for the result. You can cancel the claim while it's waiting.",
+      short: "Waiting for review",
+    },
+    approved: {
+      long: "Accepted. Use the details below to arrange the handover. The person who posted the report will mark the item as returned afterwards.",
+      short: "Arrange the handover",
+    },
+    approvedReturned: RETURNED_WITH_CLAIM,
+    rejected: {
+      long: "This claim was declined. If the report is still active, you can send a new claim with more detail.",
+      short: "Declined",
+    },
+    cancelled: {
+      long: "You withdrew this claim. You can send a new one while the report is active.",
+      short: "Withdrawn",
+    },
+    closed: CLAIMANT_CLOSED,
+    closedReturned: CLAIMANT_CLOSED,
+    closedReportClosed: CLAIMANT_CLOSED,
+    closedHidden: CLAIMANT_CLOSED,
+  },
+  owner: {
+    pending: {
+      long: "Waiting for your review. Compare the message with your private details, then approve or reject it.",
+      short: "Needs your review",
+    },
+    approved: {
+      long: "You approved this claim. Arrange the handover using the details below, then mark the item as returned on your report's page.",
+      short: "Arrange the handover",
+    },
+    approvedReturned: RETURNED_WITH_CLAIM,
+    rejected: {
+      long: "This claim was declined. There's nothing more to do.",
+      short: "Declined",
+    },
+    cancelled: {
+      long: "The claimant withdrew this claim. There's nothing more to do.",
+      short: "Withdrawn by the claimant",
+    },
+    closed: {
+      long: "Closed automatically when the report ended. There's nothing more to do.",
+      short: "Report ended",
+    },
+    closedReturned: {
+      long: "Closed automatically when you marked the item as returned. There's nothing more to do.",
+      short: "Closed: item returned",
+    },
+    closedReportClosed: {
+      long: "Closed automatically when the report was closed. There's nothing more to do.",
+      short: "Closed: report closed",
+    },
+    closedHidden: {
+      long: "Closed because an admin hid the report. There's nothing more to do.",
+      short: "Closed: report hidden",
+    },
+  },
 };
 
 export const HANDOVER_NOTE_HINT =
@@ -281,8 +358,16 @@ export const PRIVATE_DETAILS_HELP =
 export const PRIVATE_DETAILS_CANNOT_REMOVE =
   "Private details can't be removed once added. You can change the text instead.";
 
-// close_report() raises INVALID_STATUS when the report has already ended.
-export const REPORT_ALREADY_ENDED_MESSAGE = "This report is already closed or resolved.";
+// close_report() and resolve_report() raise INVALID_STATUS when the report
+// has already ended.
+export const REPORT_ALREADY_ENDED_MESSAGE =
+  "This report is already closed or marked as returned.";
+
+// Asked before resolve_report() (DEVELOPMENT.md 6.5, 8.6).
+export const RESOLVE_REPORT_QUESTION =
+  "Has this item been returned? Any other pending claims will be closed.";
+export const RESOLVE_REPORT_KEEPS_APPROVED =
+  "The approved claim stays as the record of the handover.";
 
 // Shown to the owner on the item page when the report was saved but its
 // private details weren't.

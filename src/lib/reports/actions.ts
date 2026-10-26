@@ -200,10 +200,40 @@ export const closeReport: FormAction = async (_previous, formData) => {
     };
   }
 
-  revalidatePath(`/items/${id}`);
-  revalidatePath("/dashboard");
+  revalidateAfterStatusChange();
   redirect(`/items/${id}`);
 };
+
+// active → resolved ("Returned" in the UI) through resolve_report(), which
+// checks the caller and the status itself. It works with or without an
+// approved claim; pending claims are closed and an approved one stays
+// approved (DEVELOPMENT.md 8.6, 9.10).
+export const resolveReport: FormAction = async (_previous, formData) => {
+  const id = formData.get("id");
+  if (!isUuid(id)) return { ok: false, error: ERROR_MESSAGES.NOT_FOUND };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("resolve_report", { p_item_id: id });
+  if (error) {
+    return {
+      ok: false,
+      error:
+        dbErrorCode(error) === "INVALID_STATUS"
+          ? REPORT_ALREADY_ENDED_MESSAGE
+          : dbErrorMessage(error),
+    };
+  }
+
+  revalidateAfterStatusChange();
+  redirect(`/items/${id}`);
+};
+
+// Ending a report changes its page, the lists, the dashboard, its claims'
+// pages and the header's review count (in the root layout), so everything
+// under the root layout is refreshed.
+function revalidateAfterStatusChange() {
+  revalidatePath("/", "layout");
+}
 
 // validate_item_report raises INVALID_INPUT with the field in the detail
 // (DEVELOPMENT.md 9.11), so these show next to the right field.

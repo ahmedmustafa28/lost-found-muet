@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CLAIM_STATUS_LABELS, CLAIM_TYPE_LABELS } from "@/lib/constants";
 import type { MyClaim } from "@/lib/claims/queries";
+import { claimStatusText } from "@/lib/claims/statusText";
 import { formatTimestampDate } from "@/lib/dates";
 
 // Status is shown as text, not only colour.
@@ -21,7 +22,8 @@ export function MyClaimsList({ claims }: { claims: MyClaim[] }) {
               {claim.reportTitle ?? "Report no longer available"}
             </span>
             <span className="text-sm text-neutral-700 dark:text-neutral-300">
-              {CLAIM_TYPE_LABELS[claim.claimType]} · {CLAIM_STATUS_LABELS[claim.status]} · Sent{" "}
+              {CLAIM_TYPE_LABELS[claim.claimType]} · {CLAIM_STATUS_LABELS[claim.status]}:{" "}
+              {claimStatusText(claim.status, "claimant", claim.reportStatus).short} · Sent{" "}
               {formatTimestampDate(claim.createdAt)}
             </span>
           </Link>
