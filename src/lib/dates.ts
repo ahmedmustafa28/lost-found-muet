@@ -43,3 +43,14 @@ export function formatDate(date: string): string {
     year: "numeric",
   }).format(new Date(`${date}T00:00:00Z`));
 }
+
+// The day of a timestamptz in Pakistan time (DEVELOPMENT.md D-12), in the
+// same style as formatDate.
+export function formatTimestampDate(timestamp: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: APP_TIME_ZONE,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(timestamp));
+}

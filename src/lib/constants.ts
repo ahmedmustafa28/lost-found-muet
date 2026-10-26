@@ -42,9 +42,19 @@ export type ReportStatus = (typeof REPORT_STATUSES)[number];
 
 export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
   active: "Active",
-  resolved: "Resolved",
+  // "Resolved" means the item was returned (DEVELOPMENT.md 8.6); the UI
+  // always calls it "Returned".
+  resolved: "Returned",
   closed: "Closed",
   hidden: "Hidden",
+};
+
+// Shown on the item page to anyone who can still see a report that isn't
+// active.
+export const REPORT_STATUS_NOTICES: Record<Exclude<ReportStatus, "active">, string> = {
+  resolved: "This item has been returned.",
+  closed: "This report is closed.",
+  hidden: "This report has been hidden by an admin.",
 };
 
 export const CATEGORIES = [
@@ -104,6 +114,145 @@ export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
   cancelled: "Cancelled",
   closed: "Closed",
 };
+
+// What a claim's status means and what happens next, in words
+// (DEVELOPMENT.md 8.7). `long` is for the claim page, `short` for lists.
+// Picked by claimStatusText() in src/lib/claims/statusText.ts: approved and
+// closed claims also depend on the report's status. The claimant of a closed
+// claim can't see the report any more, so their text doesn't say why it
+// ended.
+export type ClaimViewer = "claimant" | "owner";
+export type ClaimStatusCase =
+  | ClaimStatus
+  | "approvedReturned"
+  | "closedReturned"
+  | "closedReportClosed"
+  | "closedHidden"
+  // An admin hid the report (closing its claims), then restored it.
+  | "closedReopened";
+export type ClaimStatusText = { long: string; short: string };
+
+const RETURNED_WITH_CLAIM: ClaimStatusText = {
+  long: "The item has been marked as returned. This claim is the record of the handover, and the details below stay available.",
+  short: "Item returned",
+};
+
+const CLAIMANT_CLOSED: ClaimStatusText = {
+  long: "Closed because the report ended: the item was returned, or the report was closed or taken down. There's nothing more to do with this claim.",
+  short: "Report ended",
+};
+
+// The claimant's closedReopened text above is for "This is mine"; on an
+// "I found this" claim the claimant is the finder, not the owner.
+export const CLAIMANT_REOPENED_FOUND_MATCH: ClaimStatusText = {
+  long: "This claim was closed when the report was hidden. The report is open again, so you can send a new claim if you still have it.",
+  short: "Closed: report reopened",
+};
+
+export const CLAIM_STATUS_TEXT: Record<ClaimViewer, Record<ClaimStatusCase, ClaimStatusText>> = {
+  claimant: {
+    pending: {
+      long: "Waiting for the person who posted the report to review it. Check back here for the result. You can cancel the claim while it's waiting.",
+      short: "Waiting for review",
+    },
+    approved: {
+      long: "Accepted. Use the details below to arrange the handover. The person who posted the report will mark the item as returned afterwards.",
+      short: "Arrange the handover",
+    },
+    approvedReturned: RETURNED_WITH_CLAIM,
+    rejected: {
+      long: "This claim was declined. If the report is still active, you can send a new claim with more detail.",
+      short: "Declined",
+    },
+    cancelled: {
+      long: "You withdrew this claim. You can send a new one while the report is active.",
+      short: "Withdrawn",
+    },
+    closed: CLAIMANT_CLOSED,
+    closedReturned: CLAIMANT_CLOSED,
+    closedReportClosed: CLAIMANT_CLOSED,
+    closedHidden: CLAIMANT_CLOSED,
+    closedReopened: {
+      long: "This claim was closed when the report was hidden. The report is open again, so you can send a new claim if it's still yours.",
+      short: "Closed: report reopened",
+    },
+  },
+  owner: {
+    pending: {
+      long: "Waiting for your review. Compare the message with your private details, then approve or reject it.",
+      short: "Needs your review",
+    },
+    approved: {
+      long: "You approved this claim. Arrange the handover using the details below, then mark the item as returned on your report's page.",
+      short: "Arrange the handover",
+    },
+    approvedReturned: RETURNED_WITH_CLAIM,
+    rejected: {
+      long: "This claim was declined. There's nothing more to do.",
+      short: "Declined",
+    },
+    cancelled: {
+      long: "The claimant withdrew this claim. There's nothing more to do.",
+      short: "Withdrawn by the claimant",
+    },
+    closed: {
+      long: "Closed automatically when the report ended. There's nothing more to do.",
+      short: "Report ended",
+    },
+    closedReturned: {
+      long: "Closed automatically when you marked the item as returned. There's nothing more to do.",
+      short: "Closed: item returned",
+    },
+    closedReportClosed: {
+      long: "Closed automatically when the report was closed. There's nothing more to do.",
+      short: "Closed: report closed",
+    },
+    closedHidden: {
+      long: "Closed because an admin hid the report. There's nothing more to do.",
+      short: "Closed: report hidden",
+    },
+    closedReopened: {
+      long: "This claim was closed when the report was hidden. The report is open again, so new claims can come in.",
+      short: "Closed: report reopened",
+    },
+  },
+};
+
+export const HANDOVER_NOTE_HINT =
+  "Where and when to meet, for example \"Library entrance, Monday 2 pm\". Choose a public place on campus.";
+
+// Shown next to the contact details of an approved claim (DEVELOPMENT.md 6.5).
+export const HANDOVER_SAFETY_TIPS = [
+  "Meet in a public place on campus, during the day if you can.",
+  "Never pay anyone to get an item back.",
+  "Use these details only to arrange the handover.",
+] as const;
+
+// Claim form guidance (DEVELOPMENT.md 6.3, 6.4), by claim type.
+export const CLAIM_MESSAGE_HINTS: Record<ClaimType, string> = {
+  ownership:
+    "Describe something about the item that isn't in the public description or photo, so the finder can tell it's yours.",
+  found_match:
+    "Say where and when you found it, and what it looks like.",
+};
+
+// Shown before submitting or approving a claim (DEVELOPMENT.md D-03, 8.4).
+export const CLAIM_CONTACT_NOTICE =
+  "If this claim is approved, you and the other person will see each other's name and email so you can arrange the handover.";
+
+// Clearer wording than ERROR_MESSAGES for these codes on the claim forms.
+export const CLAIM_ERROR_MESSAGES = {
+  duplicate: "You've already sent a claim on this report.",
+  notTakingClaims: "This report is no longer taking claims.",
+  cannotCancelEnded: "This claim can't be cancelled because the report has ended.",
+  alreadyEnded: "This claim is already closed.",
+  reportUnavailable: "This report is no longer available.",
+  alreadyApproved:
+    "You've already approved another claim on this report. Reject it first if the handover didn't work out.",
+  noLongerPending: "This claim is no longer pending. Refresh the page.",
+  cannotReviewEnded: "This report is no longer active, so its claims can't be reviewed.",
+  contactNotLoaded: "Contact details couldn't be loaded. Refresh the page.",
+} as const;
 
 // ---------- Abuse reports ----------
 
@@ -226,8 +375,19 @@ export const PRIVATE_DETAILS_HELP =
 export const PRIVATE_DETAILS_CANNOT_REMOVE =
   "Private details can't be removed once added. You can change the text instead.";
 
-// close_report() raises INVALID_STATUS when the report has already ended.
-export const REPORT_ALREADY_ENDED_MESSAGE = "This report is already closed or resolved.";
+// close_report() and resolve_report() raise INVALID_STATUS when the report
+// has already ended.
+export const REPORT_ALREADY_ENDED_MESSAGE =
+  "This report is already closed or marked as returned.";
+
+// Asked before resolve_report() (DEVELOPMENT.md 6.5, 8.6). "Other" only
+// when a claim is approved, as that one stays open.
+export const RESOLVE_REPORT_QUESTION =
+  "Has this item been returned? Any pending claims will be closed.";
+export const RESOLVE_REPORT_QUESTION_WITH_APPROVED =
+  "Has this item been returned? Any other pending claims will be closed.";
+export const RESOLVE_REPORT_KEEPS_APPROVED =
+  "The approved claim stays as the record of the handover.";
 
 // Shown to the owner on the item page when the report was saved but its
 // private details weren't.
