@@ -64,7 +64,7 @@ test.describe("claims", () => {
   test.beforeAll(async ({ browser }) => {
     if (!creds) return;
     for (const person of ["A", "B", "C"] as const) {
-      const { context, page: p } = await signIn(browser, creds[person]);
+      const { context, page: p } = await signIn(browser, person, creds[person]);
       contexts.push(context);
       page[person] = p;
       name[person] = await displayName(p);
@@ -270,13 +270,24 @@ test.describe("claims", () => {
 
 // ---------- Helpers ----------
 
-async function signIn(browser: Browser, { email, password }: Credentials) {
+// Fails at once with the login page's own message (for example wrong
+// credentials) instead of timing out. Never includes the email or password.
+async function signIn(browser: Browser, person: Person, { email, password }: Credentials) {
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Log in" }).click();
+
+  const loginError = page.getByRole("main").getByRole("alert");
+  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 }).or(loginError)).toBeVisible();
+  if (await loginError.isVisible()) {
+    const message = (await loginError.textContent())?.trim();
+    throw new Error(
+      `Sign-in failed for ${person}: "${message}". Check E2E_${person}_EMAIL and E2E_${person}_PASSWORD in .env.test.local.`,
+    );
+  }
   await page.waitForURL("**/dashboard");
   return { context, page };
 }
